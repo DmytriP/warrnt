@@ -1,7 +1,7 @@
 P2.3 CONTROL CHECKPOINT — the demo vector passes end to end
 ============================================================
 HackYeah 2026 · WARRNT · 3.10 19:00 checkpoint per ROADMAP
-Card: t_ae2c00ca · "Адзін вектар праходзіць ад пачатку да канца."
+Card: t_ae2c00ca · "One vector passes end to end."
 
 VERDICT: PASS — all four legs of the checkpoint are green on live processes.
 Raw commands and their raw output below; nothing here is a script narrative.
