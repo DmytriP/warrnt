@@ -144,6 +144,26 @@ def main() -> int:
         state = demo.get(url, "/state")
         check("the state contract is complete",
               all(k in state for k in ("agents", "warrants", "receipts", "executor_calls", "chain")))
+
+        # P2.1: the gate trusts the signature, not the object in memory. Widen a signed
+        # order through the dev probe, then try a call that the widened limit would allow.
+        tamper = demo.post(url, "/_dev/tamper", {"warrant": "W-4417"})
+        check("the dev probe invalidates a signed order",
+              tamper.get("ok") is True and tamper.get("sig_ok") is False,
+              f"mutated={tamper.get('mutated')}")
+
+        before_tr = demo.get(url, "/state")["executor_calls"].get("payments.transfer", 0)
+        widened_ok = rpc(url, "fin-reconcile", tokens["fin-reconcile"], "payments.transfer",
+                         {"amount_pln": 42000})
+        after_tr = demo.get(url, "/state")["executor_calls"].get("payments.transfer", 0)
+        check("a tampered order is refused before execution",
+              widened_ok.get("error", {}).get("data", {}).get("decision") == "deny"
+              and "signature invalid" in widened_ok.get("error", {}).get("message", ""),
+              f"executor payments.transfer {before_tr}->{after_tr}")
+        check("the refused call never reached the upstream", before_tr == after_tr)
+
+        check("the chain still verifies after a refused call",
+              demo.get(url, "/verify")["ok"] is True)
     finally:
         proc.terminate()
         try:

@@ -1,4 +1,4 @@
-PASS  node is up and the chain verifies  [chain={'ok': True, 'length': 14, 'head': '25b66f6b30806921'}]
+PASS  node is up and the chain verifies  [chain={'ok': True, 'length': 15, 'head': 'e75dd13d18159a4c'}]
 PASS  three seed warrants issued  [deploy-agent,fin-reconcile,support-copilot]
 PASS  every warrant carries a valid signature
 PASS  a signature is bound to the payload it signed
@@ -11,8 +11,12 @@ PASS  a forged token is denied
 PASS  the running agent observes the revocation on its next call  [latency=0.118s]
 PASS  zero rows left the perimeter
 PASS  a revoked agent cannot call again
-PASS  the receipt chain recomputes from genesis  [14 receipts, head c9e599c02849133c]
+PASS  the receipt chain recomputes from genesis  [14 receipts, head 7e45eee38390f385]
 PASS  receipts are a single unbroken chain
 PASS  the state contract is complete
+PASS  the dev probe invalidates a signed order  [mutated={'param': 'amount_pln', 'value': 50000000}]
+PASS  a tampered order is refused before execution  [executor payments.transfer 0->0]
+PASS  the refused call never reached the upstream
+PASS  the chain still verifies after a refused call
 
-16/16 checks passed
+20/20 checks passed

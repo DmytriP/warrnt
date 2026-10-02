@@ -132,3 +132,53 @@ def test_state_contract_shape(client):
     for key in ("revoked", "last_stop", "agents", "warrants", "receipts", "executor_calls", "chain"):
         assert key in state
     assert len(state["agents"]) == 3 and len(state["warrants"]) == 3
+
+
+# --- P2.1: pre-execution enforcement of the order itself ----------------------
+
+def test_a_tampered_order_is_refused_before_execution(client, tokens):
+    """Widen a signed limit in memory; the gate must honour the signature, not the object."""
+    proxy = client.app.state.proxy
+    proxy.warrants["W-4417"].rules[1].guards[0].value = 10_000_000
+
+    before = _calls(client, "payments.transfer")
+    reply = call(client, tokens, "fin-reconcile", "payments.transfer", {"amount_pln": 5_000_000})
+    body = reply.json()
+    assert body["error"]["code"] == -32001
+    assert body["error"]["data"]["decision"] == "deny"
+    assert "signature invalid" in body["error"]["message"]
+    assert body["error"]["data"]["sig_ok"] is False
+    assert body["error"]["data"]["executed"] is False
+    assert _calls(client, "payments.transfer") == before          # nothing ran
+
+    seen = {w["id"]: w for w in client.get("/warrants").json()}
+    assert seen["W-4417"]["sig_ok"] is False                      # visible on the order view
+
+
+def test_identity_is_scoped_to_its_own_order(client, tokens):
+    """A support identity pointed at the finance order is refused by binding, not by tool."""
+    proxy = client.app.state.proxy
+    proxy.agents["support-copilot"].warrant = "W-4417"            # rebind to another agent's order
+    reply = call(client, tokens, "support-copilot", "payments.read", {})
+    body = reply.json()
+    assert body["error"]["data"]["decision"] == "deny"
+    assert "binding mismatch" in body["error"]["message"]
+
+
+def test_dev_tamper_probe_is_off_without_dev_mode(settings, tokens):
+    from fastapi.testclient import TestClient
+    import dataclasses
+    from warrnt.api import create_app
+
+    prod = dataclasses.replace(settings, dev=False)
+    with TestClient(create_app(settings=prod)) as c:
+        assert c.post("/_dev/tamper", json={"warrant": "W-4419"}).status_code == 403
+
+
+def test_dev_tamper_probe_marks_the_order_invalid(client):
+    reply = client.post("/_dev/tamper", json={"warrant": "W-4417"})
+    assert reply.status_code == 200
+    body = reply.json()
+    assert body["ok"] is True and body["sig_ok"] is False
+    seen = {w["id"]: w for w in client.get("/warrants").json()}
+    assert seen["W-4417"]["sig_ok"] is False

@@ -8,7 +8,11 @@ flowchart LR
     A[Agent<br/>ephemeral token] -->|POST /mcp<br/>tools/call| P{MCPProxy.intercept}
     P --> I{identity<br/>token matches?}
     I -->|no| D1[DENY -32001<br/>no receipt target]
-    I -->|yes| W{warrant<br/>revoked / expired?}
+    I -->|yes| B{identity bound<br/>to this warrant?}
+    B -->|no| D0[DENY -32001<br/>binding mismatch]
+    B -->|yes| S{order signature<br/>verifies?}
+    S -->|no| D0b[DENY -32001<br/>unverified order]
+    S -->|yes| W{warrant<br/>revoked / expired?}
     W -->|revoked / expired| D2[REVOKED -32003 / EXPIRED -32004]
     W -->|active| R{rule covers<br/>this tool?}
     R -->|no| D3[DENY -32001<br/>outside scope]
@@ -41,8 +45,12 @@ sig     = HMAC-SHA256(issuer_key, canon(payload))
 * `canon` = sorted keys, no whitespace, UTF-8 preserved — the same record always hashes to
   the same bytes.
 * TTL is checked on every call: an expired warrant is a decision, not a background job.
+* The signature is verified **at the gate**, before the rules are read. A warrant whose bytes
+  no longer match `sig` is refused (`DENY`, `sig_ok: false`) even if its guards would allow
+  the call — so widening a limit in memory changes nothing that is honoured.
 * Tokens are derived: `HMAC(key, "tok:<agent>:<warrant>")[:24]` — deterministic, bound to
-  one agent and one warrant, never stored in the clear.
+  one agent and one warrant, never stored in the clear. The node checks the token *and* that
+  the warrant it names belongs to that agent.
 
 ## The registry
 

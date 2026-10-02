@@ -78,7 +78,12 @@ class MCPProxy:
             return Decision.deny, "unknown agent identity or bad token", {}, {}, False
 
         warrant = self.warrants.get(agent.warrant)
-        if agent.state == "halted":
+        if warrant is not None and warrant.agent != agent_id:
+            # Identity is scoped: a token minted for one agent never authorises another's
+            # warrant, even if both are held by the same node.
+            decision, reason = Decision.deny, "identity/warrant binding mismatch · token not scoped to this order"
+            detail = {"warrant": agent.warrant, "agent": agent_id}
+        elif agent.state == "halted":
             decision, reason = Decision.revoked, f"agent halted · warrant {agent.warrant} pulled"
             detail = {"warrant": agent.warrant}
         else:

@@ -44,12 +44,17 @@ class RevokeRequest(BaseModel):
     warrant: Optional[str] = None
 
 
+class TamperRequest(BaseModel):
+    warrant: str
+
+
 def build_proxy(settings: Settings) -> MCPProxy:
     issuer = WarrantIssuer.from_env_or_file(str(settings.key_path))
     registry = AppendOnlyRegistry(str(settings.registry_path))
     counter = ExecutionCounter()
     upstream = build_upstream(counter)
-    proxy = MCPProxy(issuer=issuer, registry=registry, engine=PolicyEngine(), upstream=upstream)
+    engine = PolicyEngine(verify=issuer.signature_ok)
+    proxy = MCPProxy(issuer=issuer, registry=registry, engine=engine, upstream=upstream)
     proxy.counter = counter
     return proxy
 
@@ -169,6 +174,34 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
     def reset() -> dict[str, Any]:
         proxy().issue_all(reset_registry=True)
         return {"ok": True, "state": proxy().state()}
+
+    # --------------------------------------------------------- dev probe (signature)
+    @app.post("/_dev/tamper")
+    def dev_tamper(body: TamperRequest) -> JSONResponse:
+        """Dev-only: widen a signed order *after* issuance, to prove the gate trusts the
+        signature and not the object in memory. Disabled unless WARRNT_DEV=1."""
+        if not settings.dev:
+            return JSONResponse({"error": "tamper probe is dev-only (set WARRNT_DEV=1)"},
+                                status_code=403)
+        p = proxy()
+        warrant = p.warrants.get(body.warrant)
+        if warrant is None:
+            return JSONResponse({"error": "unknown warrant", "warrant": body.warrant},
+                                status_code=404)
+        widened = None
+        for rule in warrant.rules:
+            for guard in rule.guards:
+                if isinstance(guard.value, (int, float)):
+                    guard.value = guard.value * 1000          # e.g. 50,000 -> 50,000,000 PLN
+                    widened = {"param": guard.param, "value": guard.value}
+                    break
+            if widened:
+                break
+        if widened is None:
+            warrant.scope = warrant.scope + " · everything forever"
+            widened = {"scope": warrant.scope}
+        return JSONResponse({"ok": True, "warrant": warrant.id, "mutated": widened,
+                             "sig_ok": p.issuer.signature_ok(warrant)})
 
     return app
 

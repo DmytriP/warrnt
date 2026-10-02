@@ -31,8 +31,8 @@ curl -s localhost:8099/state  | jq '.agents,.chain'
 Run the checks — they exercise a real server, not mocks:
 
 ```bash
-python3 -m pytest -q          # 35 unit + API tests
-python3 scripts/verify_live.py  # 16 checks against a live uvicorn process
+python3 -m pytest -q          # 44 unit + API tests
+python3 scripts/verify_live.py  # 20 checks against a live uvicorn process
 ```
 
 Drive the demo vector (the 3:47 moment) against a running node:
@@ -50,7 +50,7 @@ It is a demo convenience, not an API.
 | Brick | What it means | Where |
 |---|---|---|
 | **1. Order** | signed identity: scope + TTL + signature | `warrnt/warrants.py`, `GET /warrants` returns `sig_ok` |
-| **2. Pre-exec policy** | guards on the call's parameters | `warrnt/policy.py`, seeded rules in `warrnt/seed.py` |
+| **2. Pre-exec policy** | guards on the call's parameters, verified order first | `warrnt/policy.py`, seeded rules in `warrnt/seed.py` |
 | **3. Brake** | pull the warrant, halt the agent chain | `POST /revoke`, `MCPProxy.revoke` |
 | **4. Receipt** | append-only hash-chained registry | `warrnt/registry.py`, `GET /verify`, `GET /receipts` |
 
@@ -67,12 +67,13 @@ It is a demo convenience, not an API.
 | `GET` | `/agents` | identities (tokens only when `WARRNT_DEV=1`) |
 | `GET` | `/health` | liveness + chain head |
 | `POST` | `/reset` | re-issue the seed warrants, clear counters |
+| `POST` | `/_dev/tamper` | dev-only: widen a signed order in memory to prove the gate refuses it (`WARRNT_DEV=1`) |
 
 Denials come back as JSON-RPC errors, and nothing runs:
 
 | decision | code | meaning |
 |---|---|---|
-| `deny` | `-32001` | outside warrant scope, or a guard failed |
+| `deny` | `-32001` | outside warrant scope, a guard failed, or the order's signature is invalid |
 | `human` | `-32002` | require-human: pause, do not execute |
 | `revoked` | `-32003` | warrant pulled / agent halted |
 | `expired` | `-32004` | TTL elapsed |
@@ -81,6 +82,11 @@ Denials come back as JSON-RPC errors, and nothing runs:
 
 * A denied call never reaches the upstream — `executor_calls` in `/state` counts real
   executions; `scripts/verify_live.py` asserts the counter is unchanged after a denial.
+* The order is verified at the gate, not merely displayed: `PolicyEngine` refuses a warrant
+  whose signature does not check out *before* reading its rules, so widening a limit in
+  memory does not widen it in practice. `/_dev/tamper` + the live script demonstrate this.
+* Identity is scoped: a token is bound to one agent and one warrant; a token minted for one
+  order never authorises another.
 * The signature is bound to the payload: edit `scope` after signing and `sig_ok` is false.
 * The registry is hash-chained and `fsync`ed per entry: edit or delete any line and
   `/verify` fails at that index.

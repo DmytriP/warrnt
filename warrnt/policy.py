@@ -31,8 +31,21 @@ def _pii(names: Any) -> list[str]:
 
 
 class PolicyEngine:
-    def __init__(self, pii_fields: set[str] | None = None):
+    def __init__(self, pii_fields: set[str] | None = None, verify=None):
         self.pii_fields = pii_fields or PII_FIELDS
+        # ``verify`` is the issuer's signature check, wired in by the node. When set, an
+        # order that does not verify is refused *before* its rules are ever read: the
+        # signed artifact is the authority, not a mutable object in memory.
+        self.verify = verify
+
+    def order_ok(self, warrant: Warrant) -> bool:
+        """Fail closed: any error while verifying means the order is not honoured."""
+        if self.verify is None:
+            return True
+        try:
+            return bool(self.verify(warrant))
+        except Exception:
+            return False
 
     def evaluate(self, warrant: Warrant | None, tool: str,
                  params: dict[str, Any] | None) -> tuple[Decision, str, dict[str, Any]]:
@@ -40,6 +53,10 @@ class PolicyEngine:
 
         if warrant is None:
             return Decision.deny, "no warrant covers this agent", {"scope": "none"}
+        if not self.order_ok(warrant):
+            return (Decision.deny,
+                    f"warrant {warrant.id} signature invalid · unverified order, no action",
+                    {"warrant": warrant.id, "sig_ok": False})
         if warrant.state == "revoked":
             return Decision.revoked, f"warrant {warrant.id} revoked · chain stopped", {"warrant": warrant.id}
         if refresh_state(warrant) == "expired":

@@ -81,3 +81,50 @@ def test_expired_warrant_is_reported_as_expired():
 def test_unknown_agent_has_no_warrant():
     decision, reason, _ = ENGINE.evaluate(None, "crm.read", {})
     assert decision is Decision.deny and "no warrant" in reason
+
+
+# --- P2.1: the order is verified at the gate, not merely displayed ------------
+
+def test_unverifiable_order_is_denied_before_rules_are_read():
+    engine = PolicyEngine(verify=lambda w: False)
+    w = warrant([Rule(tool="payments.read", effect=Decision.allow)])
+    decision, reason, detail = engine.evaluate(w, "payments.read", {})
+    assert decision is Decision.deny
+    assert "signature invalid" in reason
+    assert detail["sig_ok"] is False
+
+
+def test_verifying_engine_allows_a_genuine_order():
+    issuer = WarrantIssuer(key=b"k")
+    w = issuer.issue(WarrantSpec(id="W-ok", agent="a", role="R", scope="s", ttl=900.0,
+                                 rules=[Rule(tool="crm.read", effect=Decision.allow,
+                                             reason="read-only · in scope")]))
+    engine = PolicyEngine(verify=issuer.signature_ok)
+    decision, _, _ = engine.evaluate(w, "crm.read", {})
+    assert decision is Decision.allow
+
+
+def test_tampered_order_is_denied_by_a_verifying_engine():
+    issuer = WarrantIssuer(key=b"k")
+    w = issuer.issue(WarrantSpec(id="W-t", agent="a", role="R", scope="s", ttl=900.0,
+                                 rules=[Rule(tool="payments.transfer", effect=Decision.allow,
+                                             guards=[Guard(param="amount_pln", op="le", value=50000)])]))
+    w.rules[0].guards[0].value = 10_000_000          # widen after signing
+    engine = PolicyEngine(verify=issuer.signature_ok)
+    decision, reason, _ = engine.evaluate(w, "payments.transfer", {"amount_pln": 5_000_000})
+    assert decision is Decision.deny and "signature invalid" in reason
+
+
+def test_verify_error_fails_closed():
+    def boom(_):
+        raise RuntimeError("verifier exploded")
+
+    engine = PolicyEngine(verify=boom)
+    w = warrant([Rule(tool="crm.read", effect=Decision.allow)])
+    decision, _, _ = engine.evaluate(w, "crm.read", {})
+    assert decision is Decision.deny
+
+
+def test_engine_without_a_verifier_still_works():
+    # back-compat: unit policy tests run without wiring the issuer.
+    assert ENGINE.order_ok(warrant([Rule(tool="crm.read")])) is True
