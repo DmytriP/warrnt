@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WARRNT — AI Control Layer · live console</title>
+<style>
+  :root{
+    --bg:#0a0e13; --panel:#10151c; --panel2:#0d1219; --line:#1e2733; --line2:#161d27;
+    --ink:#e6edf3; --mut:#7d8b9c; --dim:#56616f;
+    --acc:#f0883e; --ok:#3fb950; --deny:#f85149; --hum:#d29922; --hash:#79c0ff;
+    --r:10px;
+    font-synthesis:none;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden;background:var(--bg)}
+  body{
+    color:var(--ink);
+    font-family:"Nimbus Sans","Helvetica Neue",Helvetica,Arial,sans-serif;
+    font-size:13px;line-height:1.35;
+    display:grid;grid-template-rows:52px 1fr 30px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:"DejaVu Sans Mono","SFMono-Regular",Menlo,Consolas,monospace}
+
+  header{display:flex;align-items:center;gap:18px;padding:0 18px;
+    background:linear-gradient(180deg,#0e141c,#0b1017);border-bottom:1px solid var(--line);}
+  .brand{display:flex;align-items:baseline;gap:9px;white-space:nowrap}
+  .brand .word{font-size:19px;font-weight:800;letter-spacing:.06em}
+  .brand .word i{color:var(--acc);font-style:normal}
+  .brand .tag{font-size:11px;color:var(--mut);letter-spacing:.14em;text-transform:uppercase}
+  .thesis{color:var(--dim);font-size:12px;border-left:1px solid var(--line);padding-left:16px;white-space:nowrap}
+  .thesis b{color:var(--acc);font-weight:600}
+  .spacer{flex:1}
+  .hstat{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--mut);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(63,185,80,.14)}
+  .dot.demo{background:var(--hum);box-shadow:0 0 0 3px rgba(210,153,34,.16)}
+  .clock{font-variant-numeric:tabular-nums;color:var(--ink);font-size:13px;letter-spacing:.04em}
+  .badge{font-size:10.5px;font-weight:700;letter-spacing:.14em;padding:4px 9px;border:1px solid var(--hum);color:var(--hum);border-radius:4px}
+
+  main{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:10px;padding:10px;min-height:0}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    display:flex;flex-direction:column;min-height:0;overflow:hidden;}
+  .tile>h2{display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid var(--line2);
+    font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#b9c5d2;background:var(--panel2);}
+  .tile>h2 .idx{color:var(--dim);font-weight:600}
+  .tile>h2 .c{margin-left:auto;font-size:11px;letter-spacing:.06em;color:var(--mut);font-weight:600;text-transform:none}
+  .tile>h2 .c b{color:var(--ink)}
+  .tile .scroll{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#26303d transparent}
+  .tile .scroll::-webkit-scrollbar{width:8px;height:8px}
+  .tile .scroll::-webkit-scrollbar-thumb{background:#26303d;border-radius:8px}
+
+  table{width:100%;border-collapse:collapse}
+  th{position:sticky;top:0;z-index:2;background:#0d131b;text-align:left;font-size:10.5px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:700;padding:7px 13px;border-bottom:1px solid var(--line2);}
+  td{padding:7px 13px;border-bottom:1px solid #12181f;font-size:12.5px;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  .aid{font-weight:600}
+  .sub{color:var(--dim);font-size:11px}
+
+  .pill{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.08em;padding:2px 8px;border-radius:20px;border:1px solid;text-transform:uppercase;white-space:nowrap}
+  .p-active{color:var(--ok);border-color:rgba(63,185,80,.5);background:rgba(63,185,80,.09)}
+  .p-halt{color:var(--deny);border-color:rgba(248,81,73,.55);background:rgba(248,81,73,.11)}
+  .p-deny{color:var(--deny);border-color:rgba(248,81,73,.5);background:rgba(248,81,73,.09)}
+  .p-allow{color:var(--ok);border-color:rgba(63,185,80,.45);background:rgba(63,185,80,.08)}
+  .p-human{color:var(--hum);border-color:rgba(210,153,34,.5);background:rgba(210,153,34,.1)}
+  .p-exp{color:var(--dim);border-color:#2a333f;background:#0d131b}
+  .p-rev{color:var(--deny);border-color:rgba(248,81,73,.4);background:rgba(248,81,73,.06);text-decoration:line-through}
+
+  .ttl{display:flex;align-items:center;gap:8px;min-width:118px}
+  .ttl .bar{flex:1;height:5px;background:#1a222c;border-radius:4px;overflow:hidden}
+  .ttl .bar span{display:block;height:100%;background:var(--ok);width:100%;transition:width .4s linear}
+  .ttl.low .bar span{background:var(--hum)}
+  .ttl.crit .bar span{background:var(--deny)}
+  .ttl .t{font-variant-numeric:tabular-nums;font-size:11.5px;color:var(--mut);min-width:42px;text-align:right}
+  .ttl.low .t{color:var(--hum)} .ttl.crit .t{color:var(--deny)}
+
+  .feed{padding:6px 0}
+  .rec{display:grid;grid-template-columns:58px 1fr auto;gap:10px;align-items:baseline;padding:7px 13px;border-bottom:1px solid #12181f}
+  .rec:last-child{border-bottom:none}
+  .rec .ts{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .rec .body{min-width:0}
+  .rec .what{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rec .what code{color:#c9d6e4;background:#131a23;border:1px solid #1b232e;border-radius:4px;padding:0 5px;font-size:11.5px}
+  .rec .meta{font-size:11px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rec .meta .h{color:var(--hash);font-family:"DejaVu Sans Mono",monospace}
+  .rec.new{animation:flash 1.1s ease-out}
+  @keyframes flash{0%{background:rgba(240,136,62,.16)}100%{background:transparent}}
+
+  .kill{display:flex;flex-direction:column;height:100%;min-height:0}
+  .kill .top{display:flex;gap:12px;padding:12px 13px;border-bottom:1px solid var(--line2);align-items:stretch}
+  .target{flex:1;min-width:0}
+  .target label{display:block;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-bottom:5px}
+  .target select{width:100%;background:#0b1017;color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:8px 9px;font-size:12.5px;font-family:inherit;outline:none}
+  .lats{display:flex;gap:10px}
+  .metric{background:var(--panel2);border:1px solid var(--line2);border-radius:8px;padding:7px 12px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:3px;min-width:86px}
+  .metric .n{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.01em;line-height:1}
+  .metric .l{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-top:2px;white-space:nowrap}
+  .metric.acc .n{color:var(--acc)} .metric.red .n{color:var(--deny)} .metric.ok .n{color:var(--ok)}
+
+  .killmid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:0;padding:6px 13px}
+  #revoke{width:min(74%,340px);border:none;border-radius:12px;cursor:pointer;
+    background:linear-gradient(180deg,#e2413a,#b3261f);color:#fff;font-family:inherit;font-weight:800;
+    letter-spacing:.16em;text-transform:uppercase;font-size:17px;padding:16px 10px;
+    box-shadow:0 8px 26px rgba(248,81,73,.28),inset 0 1px 0 rgba(255,255,255,.18);
+    transition:transform .06s ease,filter .15s ease;}
+  #revoke:hover{filter:brightness(1.08)}
+  #revoke:active{transform:translateY(1px)}
+  #revoke.arm{background:linear-gradient(180deg,#f7b34a,#c98a1f);box-shadow:0 8px 26px rgba(210,153,34,.3),inset 0 1px 0 rgba(255,255,255,.2)}
+  #revoke:disabled{background:#2a323d;box-shadow:none;cursor:not-allowed;color:#7d8b9c}
+  .hint{font-size:11.5px;color:var(--dim);text-align:center;letter-spacing:.02em}
+  .hint b{color:var(--acc)}
+  .killlog{border-top:1px solid var(--line2);max-height:96px;overflow:auto}
+  .killlog .row{display:flex;gap:9px;padding:6px 13px;font-size:11.5px;border-bottom:1px solid #12181f;align-items:baseline}
+  .killlog .row:last-child{border-bottom:none}
+  .killlog .t{color:var(--dim);font-variant-numeric:tabular-nums}
+  .killlog .txt{color:#b9c5d2}
+  .killlog .txt b{color:var(--deny)}
+
+  footer{display:flex;align-items:center;gap:26px;padding:0 18px;background:#0b1017;border-top:1px solid var(--line);font-size:11px;color:var(--mut);}
+  footer .k{display:flex;align-items:baseline;gap:7px;white-space:nowrap}
+  footer .k b{color:var(--ink);font-size:12.5px;font-variant-numeric:tabular-nums}
+  footer .k .up{color:var(--ok)} footer .k .down{color:var(--deny)}
+  footer .r{margin-left:auto;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;font-size:10.5px}
+
+  .halted td{opacity:.62}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="word">WARR<i>N</i>T</span>
+    <span class="tag">AI&nbsp;Control&nbsp;Layer</span>
+  </div>
+  <div class="thesis">No warrant, no action — <b>every agent action carries an order, or it does not happen.</b></div>
+  <div class="spacer"></div>
+  <div class="hstat"><span id="srcDot" class="dot demo"></span><span id="srcTxt">connecting…</span></div>
+  <div class="clock mono" id="clock">--:--:--</div>
+  <div class="badge" id="modeBadge">PRE-EXEC</div>
+</header>
+
+<main>
+  <!-- 1. AGENTS -->
+  <section class="tile">
+    <h2><span class="idx">01</span> Agents <span class="c"><b id="agCount">0</b> running · <b id="agHalt">0</b> halted</span></h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Agent</th><th>State</th><th>Warrant</th><th>Last action</th><th>TTL</th></tr></thead>
+        <tbody id="agBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 2. WARRANTS -->
+  <section class="tile">
+    <h2><span class="idx">02</span> Warrants <span class="c">scoped · signed · expiring · <b id="wCount">0</b> live</span></h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Order</th><th>Agent</th><th>Scope on parameters</th><th>Sig</th><th>State</th><th>TTL</th></tr></thead>
+        <tbody id="wBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 3. KILL SWITCH -->
+  <section class="tile">
+    <h2><span class="idx">03</span> Kill switch <span class="c">revoke the order · stop mid-flight</span></h2>
+    <div class="kill">
+      <div class="top">
+        <div class="target">
+          <label for="target">Target agent</label>
+          <select id="target"></select>
+        </div>
+        <div class="lats">
+          <div class="metric red"><div class="n" id="mStop">—</div><div class="l">time to stop</div></div>
+          <div class="metric acc"><div class="n" id="mRev">0</div><div class="l">orders pulled</div></div>
+        </div>
+      </div>
+      <div class="killmid">
+        <button id="revoke" aria-label="Revoke warrant">/revoke — stop agent</button>
+        <div class="hint" id="killHint">Press once to <b>arm</b>, press again to <b>revoke</b> — halts the chain in the node.</div>
+      </div>
+      <div class="killlog" id="killLog"></div>
+    </div>
+  </section>
+
+  <!-- 4. RECEIPTS / PROOF -->
+  <section class="tile">
+    <h2><span class="idx">04</span> Proof — receipts <span class="c">append-only · hash-chained · <b id="rCount">0</b> records · PII export ran <b id="upRan">0</b>×</span></h2>
+    <div class="scroll"><div class="feed" id="recFeed"></div></div>
+  </section>
+</main>
+
+<footer>
+  <div class="k">Chain integrity <b id="kChain" class="up">—</b></div>
+  <div class="k">Receipts <b id="kRec">0</b></div>
+  <div class="k">Outside-perimeter executions <b id="kOut" class="up">0</b></div>
+  <div class="k">Time to stop <b id="kStop">—</b></div>
+  <div class="k">Stopped agents <b id="kRev">0</b></div>
+  <div class="k">Anchored head <b id="kAnchor">—</b></div>
+  <div class="r" id="footR">HackYeah 2026 · Partner Task: AI Control Layer · one node, MCP interception</div>
+</footer>
+
+<script>
+/* ============================================================================
+   WARRNT console — served by the node itself.
+   LIVE  : polls GET /api/state; the kill button POSTs /revoke (real effect).
+   DEMO  : if the node is unreachable (or ?source=demo) a 3:47 scenario loops,
+           so the screen still tells the story from a file:// copy.
+   ?source=live|demo   ?qa=1 (layout assertion hook)
+   ========================================================================== */
+const QS = new URLSearchParams(location.search);
+const FORCE = QS.get('source');
+const QA = QS.get('qa') === '1';
+const DENY = 'crm.bulk_export';
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,'0');
+const hh = d => pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+
+let MODE = 'demo';
+const S = {revoked:0, lastStop:null, agents:[], warrants:[], receipts:[], exec:{}, chain:{},
+           anchor:{}, arms:0};
+
+/* ---------- rendering ---------- */
+function pill(st){
+  const map={active:['p-active','allowed'],deny:['p-deny','denied'],allow:['p-allow','allowed'],
+             human:['p-human','human'],expired:['p-exp','expired'],
+             revoked:['p-rev','revoked'],halted:['p-halt','halted']};
+  const [c,t]=map[st]||['p-exp',st];
+  return '<span class="pill '+c+'">'+t+'</span>';
+}
+function fmtT(sec){ if(sec==null) return '—'; sec=Math.max(0,Math.round(sec));
+  return pad(Math.floor(sec/60))+':'+pad(sec%60); }
+function ttlCell(ttl,ttl0){
+  const pct = ttl0? Math.max(0,(ttl/ttl0)*100):0;
+  const cls = ttl<=0?'expired':(pct<15?'crit':(pct<40?'low':''));
+  const bar = cls==='expired'? '<span style="width:0%"></span>':'<span style="width:'+pct+'%"></span>';
+  return '<div class="ttl '+(cls==='expired'?'crit':cls)+'"><div class="bar">'+bar
+       +'</div><div class="t">'+(ttl<=0?'exp':fmtT(ttl))+'</div></div>';
+}
+function renderAgents(){
+  $('agBody').innerHTML = S.agents.map(a=>{
+    const halted = a.state==='halted';
+    return '<tr class="'+(halted?'halted':'')+'">'
+      +'<td><div class="aid">'+a.id+'</div><div class="sub">'+(a.role||'')+'</div></td>'
+      +'<td>'+pill(a.state)+'</td>'
+      +'<td class="mono">'+(halted&&a.warrant? '<span style="color:#f85149;text-decoration:line-through">'+a.warrant+'</span>' : a.warrant)+'</td>'
+      +'<td>'+a.last+'</td>'
+      +'<td>'+(halted? '<span class="sub">stopped</span>' : ttlCell(a.ttl,a.ttl0))+'</td>'
+      +'</tr>';
+  }).join('');
+  $('agCount').textContent = S.agents.filter(a=>a.state==='active').length;
+  $('agHalt').textContent  = S.agents.filter(a=>a.state==='halted').length;
+}
+function renderWarrants(){
+  $('wBody').innerHTML = S.warrants.map(w=>{
+    const dead = w.state!=='active';
+    const sig = w.sig_ok===false? '<span class="pill p-deny">bad</span>'
+              : '<span class="pill p-allow" title="'+w.sig+'">ok</span>';
+    return '<tr class="'+(dead?'halted':'')+'">'
+      +'<td class="mono">'+w.id+'</td><td>'+w.agent+'</td>'
+      +'<td class="sub" style="font-size:12px;color:#9aa7b6">'+w.scope+'</td>'
+      +'<td>'+sig+'</td>'
+      +'<td>'+pill(w.state)+'</td>'
+      +'<td>'+(dead? '<span class="sub">—</span>' : ttlCell(w.ttl,w.ttl0))+'</td>'
+      +'</tr>';
+  }).join('');
+  $('wCount').textContent = S.warrants.filter(w=>w.state==='active').length;
+}
+function renderReceipts(){
+  $('recFeed').innerHTML = S.receipts.slice(0,60).map((r,i)=>
+    '<div class="rec'+(i===0&&r.fresh?' new':'')+'">'
+    +'<div class="ts mono">'+(r.t||'')+'</div>'
+    +'<div class="body"><div class="what">'+(r.what||'')+'</div>'
+    +'<div class="meta">'+(r.meta||'')+' · <span class="h">#'+(r.hash||'')+'</span></div></div>'
+    +'<div>'+pill(r.decision)+'</div>'
+    +'</div>').join('');
+  $('rCount').textContent = S.receipts.length;
+}
+function renderTargets(){
+  const sel=$('target'); const cur=sel.value;
+  sel.innerHTML = S.agents.map(a=>'<option value="'+a.id+'"'+(a.state==='halted'?' disabled':'')+'>'
+    +a.id+'  ·  '+a.warrant+'</option>').join('') || '<option>no agents</option>';
+  if(cur) sel.value=cur;
+  if(sel.selectedOptions[0] && sel.selectedOptions[0].disabled){
+    const first=[...sel.options].find(o=>!o.disabled); if(first) sel.value=first.value;
+  }
+  $('revoke').disabled = S.agents.every(a=>a.state==='halted');
+}
+function renderKpi(){
+  const total=S.receipts.length;
+  const withW=S.receipts.filter(r=>r.warrant && r.warrant!=='-').length;
+  const ran=(S.exec&&S.exec[DENY])||0;
+  $('kChain').textContent = S.chain.ok? 'verified from genesis' : (S.chain.ok===false? 'BROKEN at '+S.chain.broken_at : '—');
+  $('kChain').className = S.chain.ok===false? 'down':'up';
+  $('kRec').textContent = total;
+  $('kOut').textContent = ran;
+  $('kOut').className = ran===0? 'up':'down';
+  $('kStop').textContent = S.lastStop==null? '—' : Number(S.lastStop).toFixed(3)+' s';
+  $('mStop').textContent = S.lastStop==null? '—' : Number(S.lastStop).toFixed(2);
+  $('mRev').textContent = S.revoked||0;
+  $('kRev').textContent = S.revoked||0;
+  $('upRan').textContent = ran;
+  $('kAnchor').textContent = S.anchor && S.anchor.verdict ?
+    (S.anchor.verdict.ok? 'signed · matches ('+S.anchor.anchors+')' : 'MISMATCH') : '—';
+  $('kAnchor').className = S.anchor && S.anchor.verdict && S.anchor.verdict.ok===false ? 'down':'up';
+  window.__kpi = {receipts:total, with_warrant:withW, outside_perimeter:ran};
+}
+function renderAll(){ renderAgents(); renderWarrants(); renderReceipts(); renderTargets(); renderKpi(); }
+
+function logKill(txt){
+  const el=document.createElement('div'); el.className='row';
+  el.innerHTML='<span class="t mono">'+hh(new Date())+'</span><span class="txt">'+txt+'</span>';
+  $('killLog').prepend(el);
+  while($('killLog').children.length>12) $('killLog').lastChild.remove();
+}
+
+/* ---------- LIVE: the node's own data ---------- */
+async function poll(){
+  const r=await fetch('/api/state',{cache:'no-store'});
+  if(!r.ok) throw new Error('state '+r.status);
+  const d=await r.json();
+  if(!d || !d.agents) throw new Error('bad state');
+  MODE='live';
+  S.revoked=d.revoked||0; S.lastStop=d.last_stop;
+  S.agents=d.agents||[]; S.warrants=d.warrants||[];
+  S.receipts=(d.receipts||[]).map((x,i)=>Object.assign({},x,{fresh:i===0}));
+  S.exec=d.executor_calls||{}; S.chain=d.chain||{};
+  try{ const a=await fetch('/anchor',{cache:'no-store'}); if(a.ok) S.anchor=await a.json(); }catch(e){}
+  renderAll();
+}
+function setLive(){
+  $('srcDot').className='dot'; $('srcTxt').textContent='live feed · /api/state';
+}
+function setDown(){
+  $('srcDot').className='dot demo'; $('srcTxt').textContent='node unreachable';
+}
+window.__live = null;
+async function bootLive(){
+  await poll(); setLive();
+  window.__live = setInterval(()=>{ poll().then(()=>setLive()).catch(()=>{ setDown(); }); }, 1500);
+}
+
+/* ---------- DEMO: offline story (file:// copy) ---------- */
+function seedState(){
+  return {revoked:0,lastStop:null,exec:{},chain:{ok:true,length:0},
+    agents:[
+      {id:'fin-reconcile',  role:'Finance', state:'active',warrant:'W-4417',ttl:900,ttl0:900,last:'payments.read · ALLOW'},
+      {id:'support-copilot',role:'Support', state:'active',warrant:'W-4419',ttl:420,ttl0:420,last:'crm.read · ALLOW'},
+      {id:'deploy-agent',   role:'Platform',state:'active',warrant:'W-4421',ttl:150,ttl0:150,last:'infra.plan · ALLOW'}],
+    warrants:[
+      {id:'W-4417',agent:'fin-reconcile',  scope:'payments.read · ≤ 50,000 PLN · read-only',ttl:900,ttl0:900,state:'active',sig_ok:true},
+      {id:'W-4419',agent:'support-copilot',scope:'crm.read · export=false · no PII fields', ttl:420,ttl0:420,state:'active',sig_ok:true},
+      {id:'W-4421',agent:'deploy-agent',   scope:'infra.plan · deploy ⇒ require-human',     ttl:150,ttl0:150,state:'active',sig_ok:true}],
+    receipts:[]};
+}
+function h4(s){let x=2166136261>>>0;for(let i=0;i<s.length;i++){x^=s.charCodeAt(i);x=Math.imul(x,16777619)>>>0;}return x.toString(16).padStart(8,'0').slice(0,8);}
+function dReceipt(decision,what,warrant,meta){
+  const t=hh(new Date());
+  S.receipts.unshift({t,decision,what,warrant,meta:'order '+(warrant||'—')+' · '+meta,hash:h4(t+what+decision+S.receipts.length),fresh:true});
+  S.receipts.forEach((r,i)=>{ if(i>0) r.fresh=false; });
+}
+const DEMO={step:0,timer:null};
+function demoReset(){
+  Object.assign(S, seedState()); S.receipts=[];
+  $('killLog').innerHTML='';
+  dReceipt('allow','<code>payments.read</code> fin-reconcile → 1,240 rows reconciled','W-4417','scope ok');
+  dReceipt('allow','<code>crm.read</code> support-copilot → ticket queue','W-4419','read-only');
+  renderAll(); logKill('offline demo feed · no node reachable');
+}
+function demoStep(){
+  DEMO.step++;
+  if(DEMO.step===5){
+    $('modeBadge').textContent='INTERCEPT';
+    dReceipt('deny','<code>crm.bulk_export</code> {fields:["email","pesel"], rows:12000} — scope violation','W-4419','DENY before execution · 0 rows left the perimeter');
+    const a=S.agents.find(x=>x.id==='support-copilot'); if(a) a.last='crm.bulk_export · DENIED pre-exec';
+    renderAll(); logKill('pre-exec <b>DENY</b> support-copilot · crm.bulk_export blocked');
+  }
+  if(DEMO.step===7){
+    const a=S.agents.find(x=>x.id==='support-copilot');
+    if(a){ a.state='halted'; a.last='chain stopped · warrant revoked';
+      const w=S.warrants.find(x=>x.id===a.warrant); if(w) w.state='revoked';
+      S.revoked++; S.lastStop=0.122;
+      dReceipt('revoked','/revoke support-copilot → order W-4419 pulled','W-4419','observed on next call · 0.122 s');
+      renderAll(); logKill('<b>REVOKE</b> support-copilot · stopped in 0.122 s'); }
+    $('modeBadge').textContent='REVOKED';
+  }
+  if(DEMO.step>=16){ $('modeBadge').textContent='PRE-EXEC'; DEMO.step=0; demoReset(); }
+}
+function startDemo(){ demoReset(); clearInterval(DEMO.timer); DEMO.timer=setInterval(demoStep,1000); }
+
+/* ---------- kill switch: real POST when live ---------- */
+async function doRevoke(agent){
+  if(MODE==='live'){
+    $('revoke').disabled=true;
+    try{
+      const r=await fetch('/revoke',{method:'POST',headers:{'Content-Type':'application/json'},
+                                    body:JSON.stringify({agent})});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok){ logKill('<b>REVOKE</b> '+agent+' → '+(d.error||('HTTP '+r.status))); }
+      else { logKill('<b>REVOKE</b> '+agent+' · order '+(d.warrant||'')+' pulled · node confirmed'); }
+      await poll(); setLive();
+    }catch(e){ logKill('<b>REVOKE</b> '+agent+' → '+e.message); }
+    $('revoke').disabled=false; renderTargets();
+    $('modeBadge').textContent='REVOKED'; setTimeout(()=>$('modeBadge').textContent='PRE-EXEC',2500);
+    return;
+  }
+  /* offline demo path: same visual outcome, no node */
+  const a=S.agents.find(x=>x.id===agent); if(!a||a.state==='halted') return;
+  a.state='halted'; a.last='chain stopped · warrant revoked';
+  const w=S.warrants.find(x=>x.id===a.warrant); if(w){ w.state='revoked'; }
+  S.revoked++; S.lastStop=S.lastStop||0.122;
+  dReceipt('revoked','/revoke '+agent+' → order '+a.warrant+' pulled',a.warrant,'stop observed on next call');
+  renderAll(); logKill('<b>REVOKE</b> '+agent+' · order '+a.warrant+' pulled');
+}
+let armed=false, armTimer=null;
+function armReset(){ armed=false; clearTimeout(armTimer); $('revoke').classList.remove('arm');
+  $('revoke').textContent='/revoke — stop agent'; }
+$('revoke').addEventListener('click',()=>{
+  if(!armed){ armed=true; $('revoke').textContent='/revoke — press again to confirm';
+    $('revoke').classList.add('arm');
+    armTimer=setTimeout(armReset,4000); return; }
+  armReset();
+  const agent=$('target').value;
+  doRevoke(agent);
+});
+
+/* ---------- clock ---------- */
+setInterval(()=>{ $('clock').textContent=hh(new Date());
+  if(MODE!=='live'){ S.agents.forEach(a=>{ if(a.state==='active') a.ttl=Math.max(0,a.ttl-1); });
+    S.warrants.forEach(w=>{ if(w.state==='active'){ w.ttl=Math.max(0,w.ttl-1); if(w.ttl===0) w.state='expired'; } });
+    renderAgents(); renderWarrants(); } },1000);
+
+/* ---------- boot ---------- */
+$('clock').textContent=hh(new Date());
+if(FORCE==='demo'){ startDemo(); }
+else { bootLive().catch(()=>startDemo()); }
+
+/* ---------- QA hook: proves the layout does not scroll ---------- */
+if(QA){
+  setTimeout(()=>{
+    const de=document.documentElement;
+    const tiles=[...document.querySelectorAll('main>.tile')].map(t=>{
+      const r=t.getBoundingClientRect();
+      return {top:Math.round(r.top),bottom:Math.round(r.bottom),right:Math.round(r.right),
+              ok:(r.top>=0 && r.bottom<=window.innerHeight+0.5 && r.bottom>r.top)};
+    });
+    const qa=document.createElement('div'); qa.id='qa-report';
+    qa.dataset.tiles=JSON.stringify(tiles);
+    qa.textContent='QA source='+MODE+' scrollH='+de.scrollHeight+' innerH='+window.innerHeight
+      +' tiles='+tiles.length+' allInView='+tiles.every(t=>t.ok);
+    document.body.appendChild(qa);
+  },1600);
+}
+</script>
+</body>
+</html>

@@ -60,6 +60,39 @@ python3 scripts/demo_client.py http://127.0.0.1:8099   # terminal B
 `WARRNT_DEV=1` exposes agent tokens on `GET /agents` so the demo client can authenticate.
 It is a demo convenience, not an API.
 
+## The console screen — the face of the demo
+
+The node serves its own console at `GET /`. It is not a mockup and not a separate app:
+
+```bash
+WARRNT_DEV=1 python3 -m warrnt serve --port 8099
+# open http://127.0.0.1:8099/   — the screen the jury looks at
+python3 scripts/demo_client.py http://127.0.0.1:8099   # drive the 3:47 vector in it
+```
+
+* **Live by construction.** The page polls `GET /api/state` every 1.5 s and renders exactly
+  that; there is no second source of truth to drift from. Its four tiles are the four
+  bricks: agents (order), warrants (scope on parameters), kill switch (brake), receipts
+  (proof) — plus footer KPIs for chain integrity, outside-perimeter executions, and
+  time-to-stop.
+* **The kill switch is real.** The button POSTs `/revoke` to the node and re-polls; the
+  halt, the pulled warrant and the new `revoked` receipt you then see are the node's, not
+  the page's. Stop latency is measured by the node itself: it times the pull against the
+  stopped agent's next outbound call, so the number on screen is an observation.
+* **It falls back.** Open the same file from disk (or `?source=demo`) with no node
+  reachable and it plays a looping offline scenario, so the screen still tells the story
+  from a laptop with no server. The badge shows which of the two you are watching.
+* **Two checks keep it honest.** `scripts/console_check.py` boots the node and asserts over
+  HTTP that the screen is served, that every field it reads exists, and that the button's
+  exact request (`POST /revoke`) produces a halt the state confirms.
+  `scripts/console_shot.py` renders the live screen with headless Chromium — evidence for
+  the Design brick, produced from a running node rather than a design file.
+
+```bash
+python3 scripts/console_check.py                       # 35 checks, exits non-zero on failure
+python3 scripts/console_shot.py --outdir state/shots   # console-live.png from a live node
+```
+
 ## The four bricks, and where each lives
 
 | Brick | What it means | Where |
@@ -74,6 +107,7 @@ It is a demo convenience, not an API.
 
 | Method | Path | Purpose |
 |---|---|---|
+| `GET` | `/` | the console screen — a live view of this node, served from the package |
 | `POST` | `/mcp` | JSON-RPC 2.0 `tools/call` — the interception point. Headers: `X-WARRNT-Agent`, `X-WARRNT-Token` |
 | `POST` | `/revoke` | `{"agent": "..."}` or `{"warrant": "..."}` → halt + warrant pulled |
 | `GET` | `/state` | live contract (agents, warrants, receipts, executor calls, chain) |
@@ -83,7 +117,7 @@ It is a demo convenience, not an API.
 | `GET` | `/anchor` | the last signed head and whether the live registry still matches it |
 | `GET` | `/agents` | identities (tokens only when `WARRNT_DEV=1`) |
 | `GET` | `/health` | liveness + chain head |
-| `GET` | `/api/state` | alias of `/state` kept for the console screen (P3) |
+| `GET` | `/api/state` | the console's contract (alias of `/state`, plus `revoked` / `last_stop`) |
 | `POST` | `/reset` | re-issue the seed warrants, clear counters |
 | `POST` | `/_dev/tamper` | dev-only: widen a signed order in memory to prove the gate refuses it (`WARRNT_DEV=1`) |
 
@@ -112,7 +146,8 @@ Denials come back as JSON-RPC errors, and nothing runs:
   genesis). That is why the node seals the head with the issuer key on every append: edit
   `receipts.jsonl` and the head no longer matches the signed anchor, and you cannot sign a
   new anchor without the key. `scripts/redteam_rewrite_gap.py` runs both halves of that.
-* Revocation latency is measured on a live agent loop, not declared.
+* Revocation latency is measured on a live agent loop, not declared: the node times the
+  pull against the stopped agent's next outbound call and reports it as `last_stop`.
 
 ## Configuration
 

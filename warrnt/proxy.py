@@ -46,7 +46,11 @@ class MCPProxy:
         self.agents: dict[str, AgentState] = {}
         self.warrants: dict[str, Warrant] = {}
         self.anchor: Any = None
-        self.stats = {"revoked": 0, "last_stop": None}
+        # stats["revoked"]  - orders pulled by the operator (known the moment /revoke lands)
+        # stats["last_stop"] - seconds from that pull to the node refusing the agent's next
+        #                      outbound call; None until a stopped agent actually tries again
+        self.stats: dict[str, Any] = {"revoked": 0, "last_stop": None, "stopped_agent": None}
+        self._revoke_t0: dict[str, float] = {}
 
     # ------------------------------------------------------------------- seed
     def issue_all(self, reset_registry: bool = True) -> None:
@@ -61,7 +65,8 @@ class MCPProxy:
                 id=warrant.agent, role=warrant.role, warrant=warrant.id,
                 token=self.issuer.token_for(warrant.agent, warrant.id),
             )
-        self.stats = {"revoked": 0, "last_stop": None}
+        self.stats = {"revoked": 0, "last_stop": None, "stopped_agent": None}
+        self._revoke_t0 = {}
         self.counter.clear()
 
     # -------------------------------------------------------------- interception
@@ -93,6 +98,12 @@ class MCPProxy:
         agent.last = f"{tool} · {DECISION_TEXT.get(decision, decision.value)}"
         receipt = self._receipt(decision, agent_id, tool, agent.warrant, reason, params,
                                 detail=detail)
+
+        if decision is Decision.revoked:
+            # The halted agent just tried to act again: this receipt *is* the observation.
+            # Measure it here so the console can show a real time-to-stop without the client
+            # having to report anything back.
+            self._note_stop(agent_id)
 
         if decision is not Decision.allow:
             return decision, reason, {**detail, "receipt": receipt["hash"][:8],
@@ -127,18 +138,34 @@ class MCPProxy:
             params="", rows_after=0, ts=t0,
         )
         agent.last = "chain stopped · warrant revoked"
-        self._revoke_t0 = t0
+        self.stats["revoked"] += 1
+        self._revoke_t0[agent_id] = t0
         return t0
+
+    def _note_stop(self, agent_id: str) -> Optional[float]:
+        """Record time-to-stop the first time a halted agent is refused after the pull.
+
+        Silent by design: the refusal receipt is already in the chain, so the latency needs
+        no line of its own. Idempotent per agent - a stopped agent that keeps retrying must
+        not keep moving the number.
+        """
+        t0 = self._revoke_t0.get(agent_id)
+        if t0 is None or self.stats.get("stopped_agent") == agent_id:
+            return self.stats.get("last_stop")
+        latency = max(0.0, self._now() - t0)
+        self.stats["last_stop"] = latency
+        self.stats["stopped_agent"] = agent_id
+        return latency
 
     def observe_stop(self, agent_id: str, observed: float | None = None) -> Optional[float]:
         """Called when the running agent itself notices the revocation. Measures latency."""
         agent = self.agents.get(agent_id)
-        t0 = getattr(self, "_revoke_t0", None)
-        if agent is None or t0 is None:
+        t0 = self._revoke_t0.get(agent_id)
+        if agent is None or t0 is None or self.stats.get("stopped_agent") == agent_id:
             return None
         latency = max(0.0, (observed or self._now()) - t0)
-        self.stats["revoked"] += 1
         self.stats["last_stop"] = latency
+        self.stats["stopped_agent"] = agent_id
         self.registry.append(
             t=_clock(), decision=Decision.revoked.value, agent=agent_id, tool="agent-loop",
             warrant=agent.warrant, reason="stop observed on next outbound call",

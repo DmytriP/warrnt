@@ -17,10 +17,11 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import FastAPI, Header, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 from .anchor import HeadAnchor
@@ -96,6 +97,20 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
                 "anchor": p.anchor.verify(p.registry.head, len(p.registry.entries))}
 
     # ------------------------------------------------------------------- reads
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    def console() -> HTMLResponse:
+        """The console screen (IN-6): a live view of THIS node's /api/state.
+
+        Served from inside the package so the demo is one artifact - clone, run, open
+        the node - and the screen can never drift from the API it renders. Read per
+        request: editing the file does not need a restart during the demo.
+        """
+        path = Path(__file__).with_name("console.html")
+        if not path.exists():
+            return HTMLResponse("<h1>WARRNT</h1><p>console.html missing from the package</p>",
+                                status_code=500)
+        return HTMLResponse(path.read_text(encoding="utf-8"))
+
     @app.get("/health")
     def health() -> dict[str, Any]:
         return {"ok": True, "node": "warrnt", "chain": chain_view()}

@@ -1,0 +1,39 @@
+node up at http://127.0.0.1:36429
+
+PASS  GET / serves the console  [HTTP 200]
+PASS  console is text/html  [text/html; charset=utf-8]
+PASS  screen has id="agBody"
+PASS  screen has id="wBody"
+PASS  screen has id="recFeed"
+PASS  screen has id="target"
+PASS  screen has id="revoke"
+PASS  screen polls /api/state
+PASS  screen POSTs /revoke (real kill switch)
+PASS  screen states the thesis
+PASS  /api/state has 'agents'
+PASS  /api/state has 'warrants'
+PASS  /api/state has 'receipts'
+PASS  /api/state has 'executor_calls'
+PASS  /api/state has 'chain'
+PASS  /api/state has 'revoked'
+PASS  /api/state has 'last_stop'
+PASS  three seed agents are live  [3 agents]
+PASS  three signed warrants
+PASS  chain verifies at boot  [{"ok": true, "length": 0, "head": "0000000000000000"}]
+PASS  receipts carry allow  [13 receipts]
+PASS  receipts carry deny
+PASS  receipts carry revoked
+PASS  PII export never reached the upstream (counter == 0)  [crm.bulk_export=0]
+PASS  chain still verifies after the vector
+PASS  stop latency measured by the node  [last_stop=0.13453149795532227]
+PASS  head is anchored  [{"anchored": true, "ok": true, "signed": true, "head": "0476a1af62e50c80", "leng]
+PASS  kill switch: POST /revoke fin-reconcile accepted  [{"agent": "fin-reconcile", "state": "halted", "warrant": "W-4417", "revoked_at": 1790984539.46722}]
+PASS  agent is halted in the state the screen renders
+PASS  its warrant is revoked
+PASS  a 'revoked' receipt is now the head  [{"t": "23:42:19", "decision": "revoked", "agent": "fin-reconcile", "tool": "/revoke", "warrant": "W-]
+PASS  revoked counter advanced  [1 -> 2]
+PASS  halted agent leaves the target list
+PASS  revoke is idempotent (second press = 409)  [HTTP 409]
+PASS  chain survives the kill switch
+
+CONSOLE CHECK: 35/35 passed
