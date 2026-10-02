@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "warrnt"
+version = "0.1.0"
+description = "WARRNT - one node: MCP tool-call interception (order, policy, brake, receipt)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[project.scripts]
+warrnt = "warrnt.cli:main"
+
+[tool.setuptools]
+packages = ["warrnt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

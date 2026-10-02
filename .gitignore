@@ -1,0 +1,19 @@
+# state: signing key and the append-only receipt registry are runtime artifacts
+state/
+*.key
+*.jsonl
+
+# python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# editors / os
+.DS_Store
+.idea/
+.vscode/
