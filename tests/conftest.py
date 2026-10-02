@@ -18,6 +18,7 @@ def settings(tmp_path):
         home=tmp_path,
         registry_path=tmp_path / "receipts.jsonl",
         key_path=tmp_path / "issuer.key",
+        anchor_path=tmp_path / "anchors.jsonl",
         upstream_url="",
         host="127.0.0.1",
         port=0,

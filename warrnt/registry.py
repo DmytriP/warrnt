@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import os
 import threading
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from .canonical import canon
 
@@ -24,6 +24,8 @@ class AppendOnlyRegistry:
         self.path = path
         self._lock = threading.RLock()
         self.entries: list[dict[str, Any]] = []
+        self.on_append: Optional[Callable[[dict[str, Any]], None]] = None
+        self.on_reset: Optional[Callable[[], None]] = None
         os.makedirs(os.path.dirname(path), exist_ok=True)
         if os.path.exists(path):
             with open(path, encoding="utf-8") as fh:
@@ -44,6 +46,8 @@ class AppendOnlyRegistry:
                 fh.flush()
                 os.fsync(fh.fileno())
             self.entries.append(rec)
+            if self.on_append is not None:
+                self.on_append(rec)
             return rec
 
     # ------------------------------------------------------------------ read
@@ -69,3 +73,5 @@ class AppendOnlyRegistry:
         with self._lock:
             self.entries = []
             open(self.path, "w").close()
+            if self.on_reset is not None:
+                self.on_reset()

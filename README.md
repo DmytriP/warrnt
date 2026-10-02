@@ -31,8 +31,10 @@ curl -s localhost:8099/state  | jq '.agents,.chain'
 Run the checks — they exercise a real server, not mocks:
 
 ```bash
-python3 -m pytest -q          # 44 unit + API tests
-python3 scripts/verify_live.py  # 20 checks against a live uvicorn process
+python3 -m pytest -q                 # 50 unit + API tests
+python3 scripts/verify_live.py       # 20 checks against a live uvicorn process
+python3 scripts/security_boundaries.py   # 29 adversarial checks (journal/permissions/kill-switch)
+python3 scripts/redteam_rewrite_gap.py   # the rewrite attack, before and after the anchor
 ```
 
 P2.3 control checkpoint — assert the whole vector happened on a live node:
@@ -62,6 +64,7 @@ It is a demo convenience, not an API.
 | **2. Pre-exec policy** | guards on the call's parameters, verified order first | `warrnt/policy.py`, seeded rules in `warrnt/seed.py` |
 | **3. Brake** | pull the warrant, halt the agent chain | `POST /revoke`, `MCPProxy.revoke` |
 | **4. Receipt** | append-only hash-chained registry | `warrnt/registry.py`, `GET /verify`, `GET /receipts` |
+| **4b. Anchor** | the head is signed with the issuer key on every append, so a rewrite cannot be hidden | `warrnt/anchor.py`, `GET /anchor` |
 
 ## Endpoints
 
@@ -72,7 +75,8 @@ It is a demo convenience, not an API.
 | `GET` | `/state` | live contract (agents, warrants, receipts, executor calls, chain) |
 | `GET` | `/warrants` | signed artifacts + per-warrant signature validity |
 | `GET` | `/receipts` | the full append-only registry |
-| `GET` | `/verify` | recompute the chain from genesis |
+| `GET` | `/verify` | recompute the chain from genesis (plus the anchor verdict) |
+| `GET` | `/anchor` | the last signed head and whether the live registry still matches it |
 | `GET` | `/agents` | identities (tokens only when `WARRNT_DEV=1`) |
 | `GET` | `/health` | liveness + chain head |
 | `GET` | `/api/state` | alias of `/state` kept for the console screen (P3) |
@@ -100,6 +104,10 @@ Denials come back as JSON-RPC errors, and nothing runs:
 * The signature is bound to the payload: edit `scope` after signing and `sig_ok` is false.
 * The registry is hash-chained and `fsync`ed per entry: edit or delete any line and
   `/verify` fails at that index.
+* A hash chain alone does not stop a *consistent rewrite* (recompute every hash from
+  genesis). That is why the node seals the head with the issuer key on every append: edit
+  `receipts.jsonl` and the head no longer matches the signed anchor, and you cannot sign a
+  new anchor without the key. `scripts/redteam_rewrite_gap.py` runs both halves of that.
 * Revocation latency is measured on a live agent loop, not declared.
 
 ## Configuration
@@ -108,6 +116,7 @@ Denials come back as JSON-RPC errors, and nothing runs:
 |---|---|---|
 | `WARRNT_HOME` | `./state` | state directory |
 | `WARRNT_ISSUER_KEY` | generated at `<home>/issuer.key` (0600) | signing key |
+| `WARRNT_ANCHOR` | `<home>/anchors.jsonl` | anchor log; point it at storage outside the node (WORM, another host) |
 | `WARRNT_UPSTREAM` | unset | real MCP endpoint to front; unset → in-process sandbox |
 | `WARRNT_DEV` | `0` | expose agent tokens on `/agents` |
 | `WARRNT_HOST` / `WARRNT_PORT` | `0.0.0.0` / `8099` | bind address |
@@ -119,6 +128,7 @@ warrnt/
   canonical.py   deterministic JSON (same record -> same bytes -> same hash)
   models.py      Decision, Guard, Rule, Warrant, WarrantSpec, AgentState
   registry.py    AppendOnlyRegistry: hash chain, fsync, verify from genesis
+  anchor.py      HeadAnchor: signs the head on every append (closes the rewrite gap)
   warrants.py    WarrantIssuer: sign, verify, issue, per-agent tokens
   policy.py      PolicyEngine: guards on parameters, PII inspection
   upstream.py    SandboxUpstream (counts executions) / HttpUpstream (real MCP)
@@ -126,8 +136,8 @@ warrnt/
   seed.py        the three seed warrants (edit here to change policy)
   api.py         FastAPI app factory + routes
   cli.py         `python -m warrnt serve|demo|state`
-tests/           35 tests: signing, TTL, guards, chain tamper, end-to-end API
-scripts/         verify_live.py (live process), demo_client.py
+tests/           50 tests: signing, TTL, guards, chain tamper, anchor, end-to-end API
+scripts/         verify_live.py, security_boundaries.py, redteam_rewrite_gap.py, demo_client.py
 docs/            architecture.md
 ```
 

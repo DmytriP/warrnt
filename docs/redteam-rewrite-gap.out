@@ -1,6 +1,8 @@
-live registry: 12 entries, verify=True
-forged copy: verify={'ok': True, 'length': 12, 'head': 'a5c38dbead7f3da5'}
-FINDING  a consistent rewrite from genesis passes verify() -> the log is
-         tamper-EVIDENT, not tamper-PROOF without an external anchor.
-FIX      anchor the head hash outside the node (append to a WORM store, publish
-         the head on every N receipts, or sign the head with an offline key).
+live registry : 3 entries, honest verify=True
+ATTACK (bare chain) : verify=True  <- the log alone is fooled
+DEFENCE (anchor)    : {'anchored': True, 'ok': False, 'signed': True, 'reason': 'registry head does not match the signed anchor - rewrite detected', 'anchor_head': 'b011d5fc133ccd9c', 'registry_head': '84363daf56de3bd9', 'anchor_length': 3, 'registry_length': 3}
+honest head         : {'anchored': True, 'ok': True, 'signed': True, 'head': 'b011d5fc133ccd9c', 'length': 3, 'anchors': 37}
+
+RESULT  the bare chain is fooled; the anchored node is not.
+        To hide the rewrite an attacker must also forge the anchor signature,
+        which needs the issuer key they do not hold.

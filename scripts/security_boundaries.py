@@ -18,7 +18,7 @@ Exit code 0 iff every check passed. Prints one PASS/FAIL line per check.
 """
 from __future__ import annotations
 
-import copy
+import hashlib
 import json
 import os
 import shutil
@@ -33,7 +33,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from warrnt.anchor import HeadAnchor  # noqa: E402
+from warrnt.canonical import canon  # noqa: E402
 from warrnt.registry import AppendOnlyRegistry  # noqa: E402
+from warrnt.warrants import WarrantIssuer  # noqa: E402
 
 CHECKS: list[tuple[str, bool, str]] = []
 
@@ -213,6 +216,58 @@ def permission_checks(url: str) -> None:
           f"executor payments.transfer {before}->{after}")
 
 
+# ------------------------------------------------------------------ anchor (fix M1)
+def anchor_checks(url: str, home: Path) -> None:
+    """The head anchor seals the chain: a consistent rewrite can no longer pass silently."""
+    post(url, "/reset", {})
+    tok = tokens(url)
+    rpc(url, "support-copilot", tok["support-copilot"], "crm.read", {"table": "tickets", "limit": 5})
+    rpc(url, "support-copilot", tok["support-copilot"], "crm.bulk_export",
+        {"table": "customers", "fields": ["email"], "rows": 5})
+
+    view = get(url, "/anchor")
+    check("A1", "the node seals a signed anchor on every decision",
+          view["anchors"] >= 3 and view["verdict"]["ok"] is True,
+          f"{view['anchors']} seals, head={view['last']['head'][:16]}")
+
+    check("A2", "the signed anchor matches the live registry head",
+          view["last"]["head"][:16] == get(url, "/verify")["head"])
+
+    # Rebuild a *consistent* rewrite of the real receipts (the M1 attack) and show the
+    # signed anchor no longer matches it - while the genuine anchor still verifies.
+    live = home / "receipts.jsonl"
+    reg = AppendOnlyRegistry(str(live))
+    prev = AppendOnlyRegistry.GENESIS
+    forged = []
+    for entry in reg.entries:
+        body = {k: v for k, v in entry.items() if k != "hash"}
+        if body.get("decision") == "deny":
+            body["decision"] = "allow"
+            body["reason"] = "within warrant scope"
+        body["prev"] = prev
+        body["hash"] = hashlib.sha256((prev + canon(body)).encode()).hexdigest()
+        prev = body["hash"]
+        forged.append(body)
+
+    issuer = WarrantIssuer.from_env_or_file(str(home / "issuer.key"))
+    anchor = HeadAnchor(str(home / "anchors.jsonl"), issuer.sign)
+    verdict = anchor.verify(forged[-1]["hash"], len(forged))
+    check("A3", "a consistent rewrite of the log is caught by the anchor",
+          verdict["ok"] is False and verdict["signed"] is True,
+          f"{verdict.get('reason')}")
+    check("A4", "the honest head still verifies against the same anchor",
+          anchor.verify(reg.entries[-1]["hash"], len(reg.entries))["ok"] is True)
+    honest = anchor.verify(reg.entries[-1]["hash"], len(reg.entries))
+    # An attacker who edits the anchor record to cover the rewrite still cannot sign it.
+    doctored = HeadAnchor(str(home / "anchors.jsonl"), issuer.sign)
+    doctored.records[-1]["head"] = forged[-1]["hash"]
+    forged_verdict = doctored.verify(forged[-1]["hash"], len(forged))
+    check("A5", "an anchor edited to hide a rewrite fails its signature check",
+          honest["signed"] is True and forged_verdict["ok"] is False
+          and forged_verdict["signed"] is False,
+          "signature invalid -> forger needs the issuer key")
+
+
 # ------------------------------------------------------------------------ kill switch
 def kill_switch_checks(url: str) -> None:
     post(url, "/reset", {})
@@ -293,6 +348,7 @@ def main() -> int:
         journal_checks(url, home)
         permission_checks(url)
         kill_switch_checks(url)
+        anchor_checks(url, home)     # last, so the demo state keeps a 'deny' to forgive
     finally:
         proc.terminate()
         try:

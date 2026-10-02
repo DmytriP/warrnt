@@ -20,7 +20,12 @@ PASS  [K3] the rest of the fleet keeps working (blast radius = one warrant)
 PASS  [K4] revoking again is a clean 409, not a crash  [http=409 unknown agent or already halted]
 PASS  [K5] revoking an unknown agent is rejected without side effects
 PASS  [K6] the pulled order shows state=revoked in the registry  [W-4419=revoked W-4417=active]
-PASS  [K7] a running agent observes the kill on its next call, measured live  [latency=0.033s]
+PASS  [K7] a running agent observes the kill on its next call, measured live  [latency=0.024s]
 PASS  [K8] the journal survives a kill and still verifies
+PASS  [A1] the node seals a signed anchor on every decision  [37 seals, head=b011d5fc133ccd9c]
+PASS  [A2] the signed anchor matches the live registry head
+PASS  [A3] a consistent rewrite of the log is caught by the anchor  [registry head does not match the signed anchor - rewrite detected]
+PASS  [A4] the honest head still verifies against the same anchor
+PASS  [A5] an anchor edited to hide a rewrite fails its signature check  [signature invalid -> forger needs the issuer key]
 
-24/24 security-boundary checks passed
+29/29 security-boundary checks passed

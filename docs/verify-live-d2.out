@@ -1,4 +1,4 @@
-PASS  node is up and the chain verifies  [chain={'ok': True, 'length': 15, 'head': 'd0bdc71c7d517ef7'}]
+PASS  node is up and the chain verifies  [chain={'ok': True, 'length': 15, 'head': '934f77a80b84de06', 'anchor': {'anchored': True, 'ok': True, 'signed': True, 'head': '934f77a80b84de06', 'length': 15, 'anchors': 22}}]
 PASS  three seed warrants issued  [deploy-agent,fin-reconcile,support-copilot]
 PASS  every warrant carries a valid signature
 PASS  a signature is bound to the payload it signed
@@ -8,10 +8,10 @@ PASS  the denied export never reached the upstream  [executor crm.bulk_export=0]
 PASS  a transfer over the warrant limit is denied
 PASS  deploy stops at require-human
 PASS  a forged token is denied
-PASS  the running agent observes the revocation on its next call  [latency=0.133s]
+PASS  the running agent observes the revocation on its next call  [latency=0.143s]
 PASS  zero rows left the perimeter
 PASS  a revoked agent cannot call again
-PASS  the receipt chain recomputes from genesis  [14 receipts, head 5b10e6a7b5d51fa0]
+PASS  the receipt chain recomputes from genesis  [14 receipts, head 8e5fd735443924dd]
 PASS  receipts are a single unbroken chain
 PASS  the state contract is complete
 PASS  the dev probe invalidates a signed order  [mutated={'param': 'amount_pln', 'value': 50000000}]

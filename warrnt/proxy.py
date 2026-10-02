@@ -45,6 +45,7 @@ class MCPProxy:
         self._now = now or time.time
         self.agents: dict[str, AgentState] = {}
         self.warrants: dict[str, Warrant] = {}
+        self.anchor: Any = None
         self.stats = {"revoked": 0, "last_stop": None}
 
     # ------------------------------------------------------------------- seed

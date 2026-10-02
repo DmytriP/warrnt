@@ -19,6 +19,7 @@ class Settings:
     home: Path
     registry_path: Path
     key_path: Path
+    anchor_path: Path
     upstream_url: str
     host: str
     port: int
@@ -31,6 +32,8 @@ class Settings:
             home=base,
             registry_path=base / "receipts.jsonl",
             key_path=base / "issuer.key",
+            anchor_path=Path(os.environ.get("WARRNT_ANCHOR", "")) if os.environ.get("WARRNT_ANCHOR")
+            else base / "anchors.jsonl",
             upstream_url=os.environ.get("WARRNT_UPSTREAM", "").strip(),
             host=os.environ.get("WARRNT_HOST", "0.0.0.0"),
             port=int(os.environ.get("WARRNT_PORT", "8099")),

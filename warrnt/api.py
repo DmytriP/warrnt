@@ -23,6 +23,7 @@ from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from .anchor import HeadAnchor
 from .config import Settings
 from .models import Decision
 from .policy import PolicyEngine
@@ -56,6 +57,20 @@ def build_proxy(settings: Settings) -> MCPProxy:
     engine = PolicyEngine(verify=issuer.signature_ok)
     proxy = MCPProxy(issuer=issuer, registry=registry, engine=engine, upstream=upstream)
     proxy.counter = counter
+    # Every append, and every reset, re-signs the registry head with the issuer key and
+    # records it in a separate anchor log. A rewritten registry no longer matches the last
+    # signed anchor, and the anchor cannot be forged without the key (finding M1).
+    anchor = HeadAnchor(str(settings.anchor_path), issuer.sign)
+    proxy.anchor = anchor
+
+    def _seal_append(rec: dict) -> None:
+        anchor.seal(rec["hash"], len(registry.entries))
+
+    def _seal_reset() -> None:
+        anchor.seal(registry.GENESIS, 0)
+
+    registry.on_append = _seal_append
+    registry.on_reset = _seal_reset
     return proxy
 
 
@@ -75,10 +90,15 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
     def proxy() -> MCPProxy:
         return app.state.proxy
 
+    def chain_view() -> dict[str, Any]:
+        p = proxy()
+        return {**p.registry.verify(),
+                "anchor": p.anchor.verify(p.registry.head, len(p.registry.entries))}
+
     # ------------------------------------------------------------------- reads
     @app.get("/health")
     def health() -> dict[str, Any]:
-        return {"ok": True, "node": "warrnt", "chain": proxy().registry.verify()}
+        return {"ok": True, "node": "warrnt", "chain": chain_view()}
 
     @app.get("/state")
     def state(limit: int = 60) -> dict[str, Any]:
@@ -91,7 +111,19 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
 
     @app.get("/verify")
     def verify() -> dict[str, Any]:
-        return proxy().registry.verify()
+        return chain_view()
+
+    @app.get("/anchor")
+    def anchor() -> dict[str, Any]:
+        """The last head the issuer signed, and whether the live registry still matches it."""
+        p = proxy()
+        last = p.anchor.last
+        return {
+            "anchors": len(p.anchor.records),
+            "last": ({"head": last["head"], "length": last["length"], "ts": last["ts"],
+                      "sig": last["sig"][:16] + "…"} if last else None),
+            "verdict": p.anchor.verify(p.registry.head, len(p.registry.entries)),
+        }
 
     @app.get("/receipts")
     def receipts() -> list[dict[str, Any]]:
