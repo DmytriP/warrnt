@@ -35,6 +35,15 @@ python3 -m pytest -q          # 44 unit + API tests
 python3 scripts/verify_live.py  # 20 checks against a live uvicorn process
 ```
 
+P2.3 control checkpoint — assert the whole vector happened on a live node:
+
+```bash
+python3 scripts/demo_client.py http://127.0.0.1:8111 > /tmp/transcript.json
+python3 scripts/checkpoint_p23.py /tmp/transcript.json   # 7/7, exits non-zero on failure
+```
+
+Raw evidence of the last green run: `docs/checkpoint-p2.3.out`.
+
 Drive the demo vector (the 3:47 moment) against a running node:
 
 ```bash

@@ -1,0 +1,103 @@
+P2.3 CONTROL CHECKPOINT — the demo vector passes end to end
+============================================================
+HackYeah 2026 · WARRNT · 3.10 19:00 checkpoint per ROADMAP
+Card: t_ae2c00ca · "Адзін вектар праходзіць ад пачатку да канца."
+
+VERDICT: PASS — all four legs of the checkpoint are green on live processes.
+Raw commands and their raw output below; nothing here is a script narrative.
+
+
+LEG 0 · unit + API tests (real server, no mocks)
+------------------------------------------------
+$ python3 -m pytest -q
+............................................                             [100%]
+pytest_exit=0
+(44 tests = the 44 progress dots above; exit code 0. This config emits no "N passed" summary line.)
+
+
+LEG 1 · live verification harness (real uvicorn, real HTTP)
+-----------------------------------------------------------
+$ python3 scripts/verify_live.py
+PASS  node is up and the chain verifies  [chain={'ok': True, 'length': 15, 'head': 'e69cc15aeb45c433'}]
+PASS  three seed warrants issued  [deploy-agent,fin-reconcile,support-copilot]
+PASS  every warrant carries a valid signature
+PASS  a signature is bound to the payload it signed
+PASS  an allowed call reaches the upstream  [executor crm.read 0->1]
+PASS  a PII export is denied before execution
+PASS  the denied export never reached the upstream  [executor crm.bulk_export=0]
+PASS  a transfer over the warrant limit is denied
+PASS  deploy stops at require-human
+PASS  a forged token is denied
+PASS  the running agent observes the revocation on its next call  [latency=0.119s]
+PASS  zero rows left the perimeter
+PASS  a revoked agent cannot call again
+PASS  the receipt chain recomputes from genesis  [14 receipts, head 89a9e7f35d8b9870]
+PASS  receipts are a single unbroken chain
+PASS  the state contract is complete
+PASS  the dev probe invalidates a signed order  [mutated={'param': 'amount_pln', 'value': 50000000}]
+PASS  a tampered order is refused before execution  [executor payments.transfer 0->0]
+PASS  the refused call never reached the upstream
+PASS  the chain still verifies after a refused call
+
+20/20 checks passed                                            (verify_exit=0)
+
+
+LEG 2 · the 3:47 vector on a FRESH node (chain length 0 at genesis)
+-------------------------------------------------------------------
+$ WARRNT_DEV=1 WARRNT_HOME=state/cp-144741 python3 -m warrnt serve --port 8111   # terminal A
+$ python3 scripts/demo_client.py http://127.0.0.1:8111                          # terminal B
+
+  [{"agent":"fin-reconcile","tool":"payments.read","decision":"allow",
+    "reason":"read-only · in scope","note":"read inside scope"},
+   {"agent":"support-copilot","tool":"crm.read","decision":"allow",
+    "reason":"read-only · in scope","note":"read inside scope"},
+   {"agent":"support-copilot","tool":"crm.bulk_export","decision":"deny",
+    "reason":"export=false · no PII fields in warrant scope · PII fields requested: email, pesel",
+    "note":"PII export outside warrant scope"},
+   {"proof":"upstream executions of crm.bulk_export","before":0,"after":0,"rows_left_perimeter":0},
+   {"agent":"support-copilot","decision":"revoked","observed_on_next_call":true,"stop_latency_s":0.116},
+   {"chain":{"ok":true,"length":13,"head":"c75edea4080d0179"}}]
+
+$ python3 scripts/checkpoint_p23.py <transcript.json>
+PASS  the vector ran: reads allowed inside scope  [2 allow: ['payments.read', 'crm.read']]
+PASS  the rogue export was denied  [deny tools: ['crm.bulk_export']]
+PASS  deny happened BEFORE execution (upstream counter unchanged)  [crm.bulk_export 0->0]
+PASS  zero rows left the perimeter  [rows_left_perimeter=0]
+PASS  the running agent observed the revocation on its next call  [latency=0.116s]
+PASS  revocation latency was measured, not declared  [0.116s]
+PASS  the receipt chain recomputes from genesis  [13 receipts, head c75edea4080d0179]
+
+7/7 checkpoint checks passed                            (checkpoint_exit=0)
+
+
+LEG 3 · the console node (the artifact on screen, :8099)
+--------------------------------------------------------
+$ curl -s -X POST http://127.0.0.1:8099/api/demo/run -d '{}'
+http=200 time=0.495s
+transcript: allow payments.read · allow crm.read · DENY crm.bulk_export
+            (PII fields email,pesel · export=false) · proof before=0 after=0 rows_left_perimeter=0
+            · revoked latency_s=0.122 · chain ok=true length=14 head=e475372d468e39f2
+"verify": {"ok": true, "length": 14, "head": "e475372d468e39f2"}
+
+
+WHAT THIS PROVES (the four bricks, measured not declared)
+---------------------------------------------------------
+1. Order      — every warrant carries a valid HMAC-SHA256 signature; a tampered payload
+                fails (verify_live: "a signature is bound to the payload it signed").
+2. Pre-exec   — the PII export is denied BEFORE execution and the upstream executor
+                counter stays 0->0; the row count that left the perimeter is 0.
+3. Brake      — /revoke is observed by the already-running agent on its NEXT call,
+                latency measured on the live loop: 0.116 s (repo) / 0.122 s (console).
+4. Receipt    — the hash chain recomputes from genesis after the whole vector
+                (13 receipts on the fresh node, 14 on the console node).
+
+Not claimed: platform, admin UI, multi-tenant issuer, stdio transport.
+
+
+REPRODUCE (two terminals)
+-------------------------
+$ python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+$ WARRNT_DEV=1 python3 -m warrnt serve --port 8099
+$ python3 scripts/demo_client.py http://127.0.0.1:8099
+$ python3 scripts/verify_live.py
+$ python3 scripts/checkpoint_p23.py /tmp/transcript.json
