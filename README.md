@@ -156,7 +156,7 @@ Denials come back as JSON-RPC errors, and nothing runs:
 | `WARRNT_HOME` | `./state` | state directory |
 | `WARRNT_ISSUER_KEY` | generated at `<home>/issuer.key` (0600) | signing key |
 | `WARRNT_ANCHOR` | `<home>/anchors.jsonl` | anchor log; point it at storage outside the node (WORM, another host) |
-| `WARRNT_UPSTREAM` | unset | real MCP endpoint to front; unset → in-process sandbox |
+| `WARRNT_UPSTREAM` | unset | URL of a real MCP server (streamable HTTP) to front, e.g. `http://127.0.0.1:8210/mcp`; unset → in-process sandbox |
 | `WARRNT_DEV` | `0` | expose agent tokens on `/agents` |
 | `WARRNT_HOST` / `WARRNT_PORT` | `0.0.0.0` / `8099` | bind address |
 
@@ -170,13 +170,14 @@ warrnt/
   anchor.py      HeadAnchor: signs the head on every append (closes the rewrite gap)
   warrants.py    WarrantIssuer: sign, verify, issue, per-agent tokens
   policy.py      PolicyEngine: guards on parameters, PII inspection
-  upstream.py    SandboxUpstream (counts executions) / HttpUpstream (real MCP)
+  upstream.py    SandboxUpstream (counts executions) / MCPUpstream (real MCP server)
   proxy.py       MCPProxy: the node - intercept, revoke, state
   seed.py        the three seed warrants (edit here to change policy)
   api.py         FastAPI app factory + routes
   cli.py         `python -m warrnt serve|demo|state`
 tests/           50 tests: signing, TTL, guards, chain tamper, anchor, end-to-end API
-scripts/         verify_live.py, security_boundaries.py, redteam_rewrite_gap.py, demo_client.py
+scripts/         verify_live.py, upstream_check.py, mcp_fixture_server.py,
+                 security_boundaries.py, redteam_rewrite_gap.py, demo_client.py
 docs/            architecture.md
 ```
 
@@ -184,5 +185,14 @@ docs/            architecture.md
 
 * P3 — the single dense console screen (agents / warrants / kill / proof) against `/state`.
 * Wire `/revoke` from the screen, not just the API.
-* A real upstream MCP server behind `WARRNT_UPSTREAM` for the stage demo.
 * stdio transport — not claimed until it exists.
+
+## Live proof against a real upstream
+
+`make upstream-check` starts a real MCP server (`scripts/mcp_fixture_server.py`, official
+`mcp` SDK, streamable HTTP) as a *separate process with its own access log*, points
+`WARRNT_UPSTREAM` at it, drives the vector, and asserts each outcome twice — once from the
+node's receipts and once from the upstream's log. The negative claim ("the denied export
+never reached upstream") is read from the upstream process, not from the node.
+
+Evidence: `docs/d1-upstream-2026-10-03.out`.

@@ -4,3 +4,5 @@ pydantic>=2.6
 # tests
 pytest>=8
 httpx>=0.27
+# live upstream (WARRNT_UPSTREAM): official MCP client + server, streamable HTTP
+mcp>=2

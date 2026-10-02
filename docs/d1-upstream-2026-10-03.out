@@ -1,0 +1,28 @@
+=== D1 live upstream check — 2026-10-03 — scripts/upstream_check.py ===
+Two separate processes: a real MCP server (mcp SDK, streamable HTTP, own access log) and
+the warrnt node with WARRNT_UPSTREAM pointed at it. Every outcome is asserted twice —
+from the node's receipts and from the upstream's own log.
+
+PASS  the upstream is a real MCP server (handshake + tools/list)  [crm.bulk_export,crm.read,infra.deploy,infra.plan,payments.read,payments.transfer]
+PASS  the node is up in front of it  [upstream=http://127.0.0.1:33517/mcp]
+PASS  three seed warrants issued in front of the real upstream
+PASS  an allowed call is answered by the real upstream, not by a stub  [result={"decision": "allow", "executed": true, "ok": true, "reason": "read-only \u00b7 in scope", "receipt": "15c787e3", "rows": 20, "table": "tickets", "tool": "crm.r]
+PASS  the upstream's own log shows that call  [upstream saw ['crm.read']]
+PASS  a PII export is denied at the gate
+PASS  the denied export never reached the upstream's log  [upstream saw ['crm.read']]
+PASS  a transfer over the warrant limit is denied
+PASS  the over-limit transfer never reached the upstream  [upstream saw ['crm.read']]
+PASS  an in-limit transfer is executed by the real upstream  [result={"amount_pln": 42000.0, "decision": "allow", "executed": true, "ok": true, "reason": "within 50,000 PLN limit", "receipt": "43ae5a77", "rows": 1, "tool": "payme]
+PASS  the upstream's log shows exactly one transfer
+PASS  deploy stops at require-human
+PASS  a queued deploy never reached the upstream
+PASS  a revoked agent cannot call again
+PASS  neither the forged nor the revoked call reached the upstream  [upstream saw ['crm.read', 'payments.transfer']]
+PASS  the receipt chain recomputes from genesis  [10 receipts, head 07520dd57ae2c72d]
+PASS  the node's executor counter matches the upstream's log  [node={'crm.read': 1, 'payments.transfer': 1} upstream=['crm.read', 'payments.transfer']]
+
+upstream access log: /root/.hermes/hackyeah/warrnt/state/upstream/upstream_calls.jsonl
+upstream log contents: ["crm.read", "payments.transfer"]
+
+17/17 checks passed
+EXIT=0

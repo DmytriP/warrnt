@@ -1,4 +1,4 @@
-.PHONY: install test verify first-demo serve demo console-check console-shot clean
+.PHONY: install test verify first-demo serve demo upstream-check console-check console-shot clean
 
 install:
 	uv pip install --python $$(command -v python3) -r requirements.txt
@@ -19,6 +19,12 @@ serve:
 
 demo:
 	python3 scripts/demo_client.py http://127.0.0.1:8099
+
+# the live proof (D1): boots a real MCP server (scripts/mcp_fixture_server.py) on its own
+# port with its own access log, points WARRNT_UPSTREAM at it, drives the vector and checks
+# every outcome from BOTH sides. 17 checks, non-zero on failure.
+upstream-check:
+	python3 scripts/upstream_check.py
 
 # the console screen (IN-6): is it served, does it read the node's fields, does the kill
 # button's own request produce a halt the state confirms. 35 checks, non-zero on failure.
