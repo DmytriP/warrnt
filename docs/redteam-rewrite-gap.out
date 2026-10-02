@@ -1,0 +1,6 @@
+live registry: 12 entries, verify=True
+forged copy: verify={'ok': True, 'length': 12, 'head': 'a5c38dbead7f3da5'}
+FINDING  a consistent rewrite from genesis passes verify() -> the log is
+         tamper-EVIDENT, not tamper-PROOF without an external anchor.
+FIX      anchor the head hash outside the node (append to a WORM store, publish
+         the head on every N receipts, or sign the head with an offline key).

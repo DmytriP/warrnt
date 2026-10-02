@@ -1,0 +1,26 @@
+PASS  [S0] node up, chain verifies from genesis
+PASS  [J1] an allow, a deny and a human stop are all journaled  [0 -> 4 receipts (allow=2, deny=1, human=1)]
+PASS  [J2] the chain verifies after mixed decisions
+PASS  [J3] a denial is journaled with provenance (who, what, why)  [agent=support-copilot]
+PASS  [J4] an approval is journaled twice and the execution links to its decision  [1 execution receipt(s) carry exec_hash]
+PASS  [J5] the registry has a durable on-disk journal  [/root/.hermes/hackyeah/warrnt/state/sec-d2/receipts.jsonl]
+PASS  [J6] editing a past receipt breaks the chain at that index  [broken_at=2]
+PASS  [J7] deleting a past receipt is detected  [broken_at=2]
+PASS  [J8] an untouched copy still verifies (the check is not always-red)
+PASS  [P1] another agent's token does not authorise this identity  [reason='unknown agent identity or bad token']
+PASS  [P2] a tool outside the warrant scope is denied
+PASS  [P3] a guarded call with the amount missing fails closed
+PASS  [P4] the warrant limit is exact at the boundary  [50000 allow / 50001 deny]
+PASS  [P5] no token means no identity and no call
+PASS  [P6] an unknown agent is denied
+PASS  [P7] a denied call never reaches the upstream  [executor payments.transfer 1->1]
+PASS  [K1] revoke by warrant id halts exactly that agent  [http=200 agent=support-copilot]
+PASS  [K2] the halted agent cannot call again  [code=-32003]
+PASS  [K3] the rest of the fleet keeps working (blast radius = one warrant)
+PASS  [K4] revoking again is a clean 409, not a crash  [http=409 unknown agent or already halted]
+PASS  [K5] revoking an unknown agent is rejected without side effects
+PASS  [K6] the pulled order shows state=revoked in the registry  [W-4419=revoked W-4417=active]
+PASS  [K7] a running agent observes the kill on its next call, measured live  [latency=0.033s]
+PASS  [K8] the journal survives a kill and still verifies
+
+24/24 security-boundary checks passed
