@@ -46,6 +46,10 @@ python3 scripts/checkpoint_p23.py /tmp/transcript.json   # 7/7, exits non-zero o
 
 Raw evidence of the last green run: `docs/checkpoint-p2.3.out`.
 
+One command for the whole chain (boots its own node, clean state, prints the run):
+`make first-demo` (or `python3 scripts/first_demo_path.py`). It is the first demo path:
+order → policy → deny → brake → receipt → verify → anchor, asserted inline.
+
 Drive the demo vector (the 3:47 moment) against a running node:
 
 ```bash
