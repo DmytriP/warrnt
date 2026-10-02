@@ -64,6 +64,7 @@ def main() -> int:
         "WARRNT_PORT": str(port),
     }
     env.pop("WARRNT_UPSTREAM", None)                 # sandbox upstream: countable executions
+    (ROOT / "state").mkdir(parents=True, exist_ok=True)     # fresh clone: state/ is gitignored
     log = open(ROOT / "state" / "live-server.log", "w")
     proc = subprocess.Popen([sys.executable, "-m", "warrnt", "serve", "--port", str(port)],
                             cwd=str(ROOT), env=env, stdout=log, stderr=subprocess.STDOUT)

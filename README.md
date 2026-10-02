@@ -75,6 +75,7 @@ It is a demo convenience, not an API.
 | `GET` | `/verify` | recompute the chain from genesis |
 | `GET` | `/agents` | identities (tokens only when `WARRNT_DEV=1`) |
 | `GET` | `/health` | liveness + chain head |
+| `GET` | `/api/state` | alias of `/state` kept for the console screen (P3) |
 | `POST` | `/reset` | re-issue the seed warrants, clear counters |
 | `POST` | `/_dev/tamper` | dev-only: widen a signed order in memory to prove the gate refuses it (`WARRNT_DEV=1`) |
 
