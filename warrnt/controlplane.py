@@ -39,6 +39,16 @@ class HoldRefused(RuntimeError):
     """A hold that cannot be resolved: unknown, already decided, or its agent was halted."""
 
 
+class SeparationOfDutiesRefused(RuntimeError):
+    """One person asked for the act and the same person tried to release it.
+
+    Declared here because this is where the rule's vocabulary lives - ``HoldRefused``
+    already draws the boundary of who may resolve a hold. A product that enforces the rule
+    must not mint its own second exception with the same name: an operator catching this one
+    has to catch every refusal of this kind, including the ones raised above this module.
+    """
+
+
 def digest(params: dict[str, Any] | None) -> str:
     raw = json.dumps(params or {}, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha256(raw.encode()).hexdigest()
@@ -68,6 +78,7 @@ class Action:
     decision: str = ""
     reason: str = ""
     upstream_contacted: bool = False
+    boundary_attempts: int = 0      # how many times the action actually reached for upstream
     execution_result: dict[str, Any] = field(default_factory=dict)
     receipt: str = ""
     ts: float = 0.0

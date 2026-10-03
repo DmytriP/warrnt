@@ -294,6 +294,7 @@ class MCPProxy:
         # the story gets interesting (finding V6).
         outcome, rows = "ok", 0
         try:
+            action.boundary_attempts += 1   # counted at the attempt: an error still reached out
             result = self.upstream.call(tool, exec_params)   # executed ONLY here
             rows = int(result.get("rows", 0))
         except Exception as exc:                             # noqa: BLE001 - the record survives it
@@ -379,6 +380,7 @@ class MCPProxy:
             params="", rows_after=0, ts=self._now())
         outcome, rows, result = "ok", 0, None
         try:
+            action.boundary_attempts += 1   # counted at the attempt: an error still reached out
             result = self.upstream.call(action.tool, action.values)   # the only other call site
             rows = int(result.get("rows", 0))
         except Exception as exc:                                      # noqa: BLE001
