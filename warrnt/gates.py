@@ -38,6 +38,8 @@ class GateContext:
     actors: Any = None          # ActorRegistry - injected by the kernel
     engine: Any = None          # PolicyEngine - injected by the kernel
     breakglass: Any = None      # BreakGlassRegistry - injected by the kernel
+    catalog: Any = None         # Catalog - the one control source (D3), injected by the kernel
+    budget: Any = None          # BudgetLedger - spend ceilings (D7), injected by the kernel
     cls: Any = None             # filled by the act_class gate, read by the ones after it
     extra: dict[str, Any] = field(default_factory=dict)
 

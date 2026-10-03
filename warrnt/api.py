@@ -181,6 +181,34 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
                                 status_code=500)
         return HTMLResponse(path.read_text(encoding="utf-8"))
 
+    @app.get("/api/catalog")
+    def catalog_view() -> JSONResponse:
+        """The controls a reviewer turns, and how strictly each one acts (D3).
+
+        Reads are open on purpose: the operator's own screen has to be able to see the knobs.
+        Changing them is a file edit - see /api/catalog/reload to make one take effect now.
+        """
+        return JSONResponse(proxy().catalog.summary())
+
+    @app.get("/api/budget")
+    def budget_view() -> JSONResponse:
+        """What each agent has spent inside its window (D7) - resource consumption, not a guess."""
+        return JSONResponse({"spend": proxy().budget.snapshot()})
+
+    @app.post("/api/catalog/reload")
+    def catalog_reload(x_warrnt_admin: str = Header(default="")) -> JSONResponse:
+        """Force a re-read of the catalog (operator token).
+
+        The file is already re-read whenever its mtime moves, so this is the explicit form of
+        the same thing: it is what a reviewer presses after editing a threshold, and it answers
+        with the settings now in force rather than a bare ok.
+        """
+        denied = require_admin(x_warrnt_admin)
+        if denied is not None:
+            return denied
+        changed = proxy().catalog.reload(force=True)
+        return JSONResponse({"reloaded": changed, **proxy().catalog.summary()})
+
     @app.get("/health")
     def health() -> dict[str, Any]:
         return {"ok": True, "node": "warrnt", "chain": chain_view()}
