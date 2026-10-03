@@ -790,12 +790,67 @@ if(QA){
       return b.left>=a.left-0.5&&b.right<=a.right+0.5&&b.top>=a.top-0.5&&b.bottom<=a.bottom+0.5;};
     const spills=[].concat(...cells.map(c=>[...c.children].filter(ch=>!inside(c,ch)))).length;
     const clipped=[].concat(...cells.map(c=>[...c.children].filter(ch=>ch.scrollHeight>ch.clientHeight+1))).length;
-    const cellsOk = cells.length===6 && cells.every(c=>{const r=c.getBoundingClientRect();
-      return r.top>0 && r.bottom<=window.innerHeight+0.5 && r.width>80;}) && spills===0;
+    /* Complete is a different question from in-view: the cells must always be laid out and must
+       not spill, but whether they sit inside the current viewport only matters in the mode that
+       claims to show everything at once. Conflating the two failed every scrolled size. */
+    const cellsComplete = cells.length===6 && spills===0;
+    const cellsInView = cells.every(c=>{const r=c.getBoundingClientRect();
+      return r.top>0 && r.bottom<=window.innerHeight+0.5 && r.width>80;});
+    const cellsOk = cellsComplete && cellsInView;
+    /* The invariants a reviewer's screen must satisfy at ANY size - each one is a defect found
+       in review, expressed so a machine can fail. The no-scroll contract holds only in the mode
+       that claims it; these hold always. */
+    const revoke=document.getElementById('revoke'), select=document.getElementById('target');
+    let revokeOverTarget=false;
+    if(revoke && select){
+      const a=revoke.getBoundingClientRect(), c=select.getBoundingClientRect();
+      revokeOverTarget = a.top<c.bottom && a.bottom>c.top && a.left<c.right && a.right>c.left;
+    }
+    const cut=[...document.querySelectorAll('.tile,.taxo,footer')].filter(el=>{
+      const s=getComputedStyle(el);
+      return (s.overflow==='hidden'||s.overflowY==='hidden') &&
+             (el.scrollHeight>el.clientHeight+2 || el.scrollWidth>el.clientWidth+2);})
+      .map(el=>el.tagName.toLowerCase()+'.'+(el.className||''));
+    const squeezed=[...document.querySelectorAll('footer *,.holds *,.taxo .cell *')].filter(e=>{
+      const r=e.getBoundingClientRect();
+      return r.width>0 && r.height>26 && r.height/Math.max(1,r.width)>1.6 && e.children.length<3;})
+      .map(e=>(e.className||e.tagName));
+    const flow=[...document.body.children].filter(e=>{
+      const s=getComputedStyle(e);
+      return s.position!=='fixed' && s.display!=='none' && e.id!=='qa-report' &&
+             e.tagName!=='SCRIPT';});
+    const rects=flow.map(e=>e.getBoundingClientRect());
+    const overlaps=[];
+    for(let i=0;i<rects.length;i++) for(let j=i+1;j<rects.length;j++){
+      const A=rects[i], B=rects[j];
+      if(Math.min(A.bottom,B.bottom)-Math.max(A.top,B.top)>4 &&
+         Math.min(A.right,B.right)-Math.max(A.left,B.left)>4)
+        overlaps.push(flow[i].tagName.toLowerCase()+'∩'+flow[j].tagName.toLowerCase());}
+    const scrollMode = getComputedStyle(document.body).display==='flex';
+    const pageScrolls = de.scrollHeight>de.clientHeight+2 || de.scrollWidth>de.clientWidth+2;
+    const allInView = tiles.every(t=>t.ok);
+    const ok = overlaps.length===0 && !revokeOverTarget && cut.length===0 &&
+               squeezed.length===0 && spills===0 && cellsComplete &&
+               (scrollMode ? true : (allInView && !pageScrolls && cellsInView));
+
     const qa=document.createElement('div'); qa.id='qa-report';
     qa.dataset.tiles=JSON.stringify(tiles);
-    qa.textContent='QA source='+MODE+' scrollH='+de.scrollHeight+' innerH='+window.innerHeight
-      +' tiles='+tiles.length+' cellSpills='+spills+' cellClipped='+clipped+' bodyOverflowX='+(de.scrollWidth>de.clientWidth)+' allInView='+tiles.every(t=>t.ok);
+    qa.dataset.ok=String(ok);
+    qa.dataset.mode=scrollMode?'scroll':'board';
+    qa.dataset.overlaps=String(overlaps.length);
+    qa.dataset.revokeOverTarget=String(revokeOverTarget);
+    qa.dataset.cut=String(cut.length);
+    qa.dataset.squeezed=String(squeezed.length);
+    qa.textContent='QA ok='+ok+' source='+MODE+' mode='+(scrollMode?'scroll':'board')
+      +' vp='+window.innerWidth+'x'+window.innerHeight
+      +' scrollH='+de.scrollHeight+' innerH='+window.innerHeight
+      +' overflowY='+getComputedStyle(document.body).overflowY
+      +' tiles='+tiles.length+' cellSpills='+spills+' cellClipped='+clipped
+      +' bodyOverflowX='+(de.scrollWidth>de.clientWidth)+' allInView='+allInView
+      +' overlaps='+(overlaps.length?overlaps.join(' '):'0')
+      +' revokeOverTarget='+revokeOverTarget
+      +' unreachableContent='+(cut.length?cut.join(' '):'0')
+      +' squeezed='+(squeezed.length?squeezed.join(' '):'0');
     document.body.appendChild(qa);
   },1600);
 }
