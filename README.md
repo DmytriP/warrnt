@@ -70,9 +70,9 @@ fresh clone of this public repository, a fresh virtualenv, deps from PyPI, no in
 two-terminal demo vector, writing a verbatim transcript. It exits non-zero if any gate fails.
 
 ```bash
-./scripts/f2_clean_run.sh                        # clone from GitHub into a temp dir
-REPO_URL=file://$PWD ./scripts/f2_clean_run.sh   # or clone a local copy
-PYTHON=/usr/bin/python3 ./scripts/f2_clean_run.sh  # pick the base interpreter (default: python3)
+bash scripts/f2_clean_run.sh                        # clone from GitHub into a temp dir
+REPO_URL=file://$PWD bash scripts/f2_clean_run.sh   # or clone a local copy
+PYTHON=/usr/bin/python3 bash scripts/f2_clean_run.sh  # pick the base interpreter (default: python3)
 ```
 
 Transcript of the last run: `docs/f2/f2-clean-run-2026-10-03.out` — every gate green

@@ -37,7 +37,7 @@ console-shot:
 
 # F2: prove it on a CLEAN MACHINE - empty temp dir, fresh clone, fresh venv, all gates.
 clean-run:
-	./scripts/f2_clean_run.sh
+	bash scripts/f2_clean_run.sh
 
 clean:
 	rm -rf state .pytest_cache **/__pycache__
