@@ -9,6 +9,7 @@ import time
 from typing import Any, Optional
 
 from . import gates as gate_registry
+from .breakglass import BreakGlassRegistry
 from .gates import GateContext
 from .actions import listing as class_listing
 from .actors import ACTOR_SEED, ActorProfile, ActorRegistry
@@ -53,6 +54,10 @@ class MCPProxy:
         # adding a gate is adding a file under warrnt/plugins/, not editing this module.
         gate_registry.load()
         self._now = now or time.time
+        # Break-glass: the one thing that can lower a *policy* pause, and only that. It is
+        # signed with the same key as an order, it is single-use, and it owes a review.
+        self.breakglass = BreakGlassRegistry(sign=self.issuer.sign, now=self._now,
+                                             registry=self.registry)
         self.agents: dict[str, AgentState] = {}
         self.warrants: dict[str, Warrant] = {}
         self.anchor: Any = None
@@ -78,6 +83,9 @@ class MCPProxy:
         self.stats = {"revoked": 0, "last_stop": None, "stopped_agent": None}
         self._revoke_t0 = {}
         self.counter.clear()
+        # A reset re-issues the orders; an open bypass must not survive it.
+        self.breakglass.grants.clear()
+        self.breakglass._seq = 0
 
     # -------------------------------------------------------------- interception
     def intercept(self, agent_id: str, token: str, tool: str,
@@ -108,8 +116,13 @@ class MCPProxy:
             # (act_class), who is standing at the gate (actor_scope), what does the order
             # allow (order_policy) - and a class can only raise what follows it.
             ctx = GateContext(agent_id=agent_id, agent=agent, warrant=warrant, tool=tool,
-                              params=params or {}, actors=self.actors, engine=self.engine)
+                              params=params or {}, actors=self.actors, engine=self.engine,
+                              breakglass=self.breakglass)
             decision, reason, detail = gate_registry.run(ctx)
+            if detail.get("break_glass"):
+                # A grant is single-use: the call it lifted has just spent it. The receipt
+                # below carries the grant id, so the chain shows who opened the door and when.
+                self.breakglass.consume(detail["break_glass"], tool)
 
         agent.last = f"{tool} · {DECISION_TEXT.get(decision, decision.value)}"
         receipt = self._receipt(decision, agent_id, tool, agent.warrant, reason, params,
@@ -235,4 +248,5 @@ class MCPProxy:
             "actors": self.actors.listing(),
             "actions": class_listing(),
             "executor_calls": self.counter.snapshot(), "chain": self.registry.verify(),
+            "breakglass": self.breakglass.snapshot(),
         }

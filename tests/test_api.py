@@ -135,9 +135,10 @@ def test_reset_reissues_and_clears(client, tokens):
 
 def test_state_contract_shape(client):
     state = client.get("/state").json()
-    for key in ("revoked", "last_stop", "agents", "warrants", "receipts", "executor_calls", "chain"):
+    for key in ("revoked", "last_stop", "agents", "warrants", "receipts", "executor_calls",
+                "chain", "breakglass"):
         assert key in state
-    assert len(state["agents"]) == 3 and len(state["warrants"]) == 3
+    assert len(state["agents"]) == 4 and len(state["warrants"]) == 4
 
 
 # --- P2.1: pre-execution enforcement of the order itself ----------------------

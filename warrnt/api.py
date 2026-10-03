@@ -8,6 +8,10 @@
     GET  /verify    recompute the hash chain from genesis
     GET  /health    liveness + chain head
     POST /reset     re-issue the seed warrants and clear counters
+    POST /api/breakglass            a named person opens a policy pause for ≤15 min
+    GET  /api/breakglass            every grant, its state, its window and its debt
+    POST /api/breakglass/revoke     close a grant early
+    POST /api/breakglass/postmortem record the review a used grant owes
 
 The proxy is built once in ``create_app`` and stored on ``app.state.proxy``; routes are
 thin translators. A denied call returns a JSON-RPC ``error`` and the upstream is not
@@ -24,8 +28,10 @@ from fastapi import FastAPI, Header, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
+from .actions import classify
 from .actors import ActorRegistry
 from .anchor import HeadAnchor
+from .breakglass import MAX_TTL_S, BreakGlassRefused
 from .config import Settings
 from .models import Decision
 from .policy import PolicyEngine
@@ -50,6 +56,23 @@ class RevokeRequest(BaseModel):
 
 class TamperRequest(BaseModel):
     warrant: str
+
+
+class BreakGlassRequest(BaseModel):
+    human: str
+    agent: str
+    tool: str
+    reason: str
+    ttl_s: float = MAX_TTL_S
+
+
+class BreakGlassId(BaseModel):
+    id: str
+
+
+class BreakGlassPostmortem(BaseModel):
+    id: str
+    note: str
 
 
 def build_proxy(settings: Settings) -> MCPProxy:
@@ -230,6 +253,55 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
                                  "agent": agent_id}, status_code=409)
         return JSONResponse({"agent": agent_id, "state": "halted",
                              "warrant": p.agents[agent_id].warrant, "revoked_at": t0})
+
+    # ------------------------------------------------------------ break-glass
+    @app.post("/api/breakglass")
+    def breakglass_grant(body: BreakGlassRequest) -> JSONResponse:
+        """A named person opens one policy pause, for one agent and one tool, briefly.
+
+        The node checks the class first: what the taxonomy calls a person's act
+        (``irreversible``, ``authorize``) is refused here with that sentence, and never
+        reaches the grant. What is left is the ``human`` a *rule* asked for.
+        """
+        p = proxy()
+        if body.agent not in p.agents:
+            return JSONResponse({"error": f"unknown agent {body.agent!r}"}, status_code=404)
+        cls = classify(body.tool, None)
+        if cls is None:
+            return JSONResponse({"error": f"tool {body.tool!r} has no action class · "
+                                          f"the layer refuses what it cannot classify"},
+                                status_code=409)
+        try:
+            grant = p.breakglass.grant(human=body.human, agent=body.agent, tool=body.tool,
+                                       reason=body.reason, cls=cls.value, ttl_s=body.ttl_s)
+        except BreakGlassRefused as exc:
+            return JSONResponse({"error": str(exc), "agent": body.agent, "tool": body.tool,
+                                 "class": cls.value}, status_code=409)
+        return JSONResponse({"id": grant.id, "human": grant.human, "agent": grant.agent,
+                             "tool": grant.tool, "class": grant.cls, "reason": grant.reason,
+                             "expires_in_s": int(round(p.breakglass.remaining_s(grant))),
+                             "single_use": True, "postmortem_owed_after_use": True,
+                             "sig": grant.sig[:16]})
+
+    @app.get("/api/breakglass")
+    def breakglass_list() -> dict[str, Any]:
+        return proxy().breakglass.snapshot()
+
+    @app.post("/api/breakglass/revoke")
+    def breakglass_revoke(body: BreakGlassId) -> JSONResponse:
+        grant = proxy().breakglass.revoke(body.id)
+        if grant is None:
+            return JSONResponse({"error": f"grant {body.id} is not open"}, status_code=409)
+        return JSONResponse({"id": grant.id, "state": grant.state})
+
+    @app.post("/api/breakglass/postmortem")
+    def breakglass_postmortem(body: BreakGlassPostmortem) -> JSONResponse:
+        try:
+            grant = proxy().breakglass.postmortem(body.id, body.note)
+        except BreakGlassRefused as exc:
+            return JSONResponse({"error": str(exc)}, status_code=409)
+        return JSONResponse({"id": grant.id, "state": grant.state, "note": grant.postmortem,
+                             "postmortem_at": grant.postmortem_at})
 
     # ------------------------------------------------------------------- reset
     @app.post("/reset")

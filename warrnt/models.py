@@ -117,6 +117,39 @@ class AgentState(BaseModel):
     last: str = "warrant issued · idle"
 
 
+class BreakGlassGrant(BaseModel):
+    """A named person's time-boxed permission to lift a *policy* ``human`` pause.
+
+    Signed like a warrant, because it is one in miniature: it names one person, one agent,
+    one tool and one reason, and it stops existing on the clock. It cannot touch the class
+    taxonomy - an ``irreversible`` act is a person's act, and no grant makes it a machine's.
+    """
+
+    id: str
+    human: str                              # the person who gave it, by name
+    agent: str
+    tool: str
+    reason: str
+    cls: str
+    issued: float
+    expires: float
+    sig: str = ""
+    state: str = "active"                   # active | used | revoked
+    used_at: Optional[float] = None
+    used_by: Optional[str] = None
+    postmortem: Optional[str] = None
+    postmortem_at: Optional[float] = None
+
+    def payload(self) -> dict[str, Any]:
+        """What the signature covers: the grant itself, not its lifecycle."""
+        return {"id": self.id, "human": self.human, "agent": self.agent, "tool": self.tool,
+                "reason": self.reason, "cls": self.cls, "issued": self.issued,
+                "expires": self.expires}
+
+    def remaining(self, now: float) -> float:
+        return max(0.0, self.expires - now)
+
+
 class Receipt(BaseModel):
     """One line of the append-only registry. ``hash = sha256(prev + canon(body))``."""
 

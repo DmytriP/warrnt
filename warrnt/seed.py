@@ -32,6 +32,18 @@ SEED_SPECS: list[WarrantSpec] = [
                  inspect_pii=["fields"]),
         ],
     ),
+    # The fourth agent exists for one reason: to show what break-glass is *for*. A mass
+    # export is a policy pause - the class itself (read_personal) would let the node decide,
+    # and the order says a person decides instead. That is the pause a named operator may
+    # open for fifteen minutes. ``infra.deploy`` above stays a person's act with no way round.
+    WarrantSpec(
+        id="W-4423", agent="report-bot", role="Analytics",
+        scope="crm.bulk_export ⇒ require-human · break-glass ≤ 15 min", ttl=1800.0,
+        rules=[
+            Rule(tool="crm.bulk_export", effect="human",
+                 reason="a mass export is a person's decision, not a schedule's"),
+        ],
+    ),
     WarrantSpec(
         id="W-4421", agent="deploy-agent", role="Platform",
         scope="infra.plan · deploy ⇒ require-human", ttl=150.0,
