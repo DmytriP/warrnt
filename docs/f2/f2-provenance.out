@@ -1,0 +1,62 @@
+### F2 provenance proof  2026-10-03T02:25:07+02:00
+### repo   : /root/.hermes/hackyeah/f2/work-public/warrnt
+### commit : b590dc84a052464ed32b9199c36e861613005450 F2: invoke the clean-machine runner via bash (matches the repo's scripting convention)
+
+--- which python3 / pip ---
+/root/.hermes/hackyeah/f2/work-public/warrnt/.venv/bin/python3
+/root/.hermes/hackyeah/f2/work-public/warrnt/.venv/bin/pip
+
+--- sys.prefix / base_prefix / executable ---
+prefix       = /root/.hermes/hackyeah/f2/work-public/warrnt/.venv
+base_prefix  = /root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu
+executable   = /root/.hermes/hackyeah/f2/work-public/warrnt/.venv/bin/python3
+in_host_venv = False
+
+--- every runtime dep, and where it resolves ---
+  fastapi    0.142.2    /root/.hermes/hackyeah/f2/work-public/warrnt/.venv/lib/python3.12/site-packages/fastapi/__init__.py
+  uvicorn    0.54.0     /root/.hermes/hackyeah/f2/work-public/warrnt/.venv/lib/python3.12/site-packages/uvicorn/__init__.py
+  pydantic   2.13.5     /root/.hermes/hackyeah/f2/work-public/warrnt/.venv/lib/python3.12/site-packages/pydantic/__init__.py
+  pytest     9.1.1      /root/.hermes/hackyeah/f2/work-public/warrnt/.venv/lib/python3.12/site-packages/pytest/__init__.py
+  httpx      0.28.1     /root/.hermes/hackyeah/f2/work-public/warrnt/.venv/lib/python3.12/site-packages/httpx/__init__.py
+  starlette  1.7.0      /root/.hermes/hackyeah/f2/work-public/warrnt/.venv/lib/python3.12/site-packages/starlette/__init__.py
+  mcp        ?          /root/.hermes/hackyeah/f2/work-public/warrnt/.venv/lib/python3.12/site-packages/mcp/__init__.py
+
+no dep comes from the host venv
+
+--- warrnt itself ---
+  warrnt.__file__ = /root/.hermes/hackyeah/f2/work-public/warrnt/warrnt/__init__.py
+  from the fresh clone: True
+
+--- sys.path entries outside the clone (excluding stdlib) ---
+   /root/.hermes/hackyeah/f2
+   /root/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python312.zip
+
+--- pytest: collected test count ---
+   50 tests collected in 0.01s
+
+--- pytest: real summary line (addopts override, no -qq) ---
+   50 passed in 0.54s
+   exit = 0
+
+--- chromium (only console_shot needs it) ---
+   chromium = /usr/bin/chromium
+
+--- PYTHONPATH / WARRNT_* that could smuggle host state ---
+PYTHONPATH=<unset>
+WARRNT_* count: 0
+
+--- hardcoded host paths in shipped files (the classic 'works on my machine') ---
+  none
+
+--- tree still pristine after the run? ---
+  clean (state/ and .venv/ are gitignored, so runtime artifacts do not count as source changes)
+
+--- what the run created on disk (runtime only) ---
+total 48
+drwxr-xr-x  8 root root 4096 Oct  3 02:23 .
+drwxr-xr-x 10 root root 4096 Oct  3 02:23 ..
+-rw-r--r--  1 root root 2575 Oct  3 02:23 anchors.jsonl
+drwxr-xr-x  2 root root 4096 Oct  3 02:23 console-check
+drwxr-xr-x  2 root root 4096 Oct  3 02:23 first-demo
+-rw-------  1 root root   64 Oct  3 02:23 issuer.key
+drwxr-xr-x  2 root root 4096 Oct  3 02:23 live

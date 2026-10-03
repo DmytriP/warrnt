@@ -1,0 +1,148 @@
+############################################################
+# F2 - clean-machine run
+# started : 2026-10-03T00:22:57+0000
+# workdir : /root/.hermes/hackyeah/f2/work-public   (empty temp dir)
+# clone   : https://github.com/indrad3v4/warrnt.git
+# python  : Python 3.12.15   (/opt/hermes/venv/bin/python3)
+############################################################
+
+===== [bootstrap] clone -> venv -> pip install -r requirements.txt =====
+cloned commit: b590dc84a052464ed32b9199c36e861613005450 F2: invoke the clean-machine runner via bash (matches the repo's scripting convention)
+tree         : 0 dirty file(s); state/ present: no
+python3 now: /root/.hermes/hackyeah/f2/work-public/warrnt/.venv/bin/python3
+venv deps  : 38 packages installed from PyPI
+----- bootstrap wall=7s -----
+
+===== [pytest] python3 -m pytest -q =====
+----- exit=0  wall=1s -----
+..................................................                       [100%]
+
+===== [verify_live] python3 scripts/verify_live.py =====
+----- exit=0  wall=1s -----
+PASS  deploy stops at require-human
+PASS  a forged token is denied
+PASS  the running agent observes the revocation on its next call  [latency=0.148s]
+PASS  zero rows left the perimeter
+PASS  a revoked agent cannot call again
+PASS  the receipt chain recomputes from genesis  [14 receipts, head f45fbcd672d5df0d]
+PASS  receipts are a single unbroken chain
+PASS  the state contract is complete
+PASS  the dev probe invalidates a signed order  [mutated={'param': 'amount_pln', 'value': 50000000}]
+PASS  a tampered order is refused before execution  [executor payments.transfer 0->0]
+PASS  the refused call never reached the upstream
+PASS  the chain still verifies after a refused call
+
+20/20 checks passed
+
+===== [security] python3 scripts/security_boundaries.py =====
+----- exit=0  wall=1s -----
+PASS  [K2] the halted agent cannot call again  [code=-32003]
+PASS  [K3] the rest of the fleet keeps working (blast radius = one warrant)
+PASS  [K4] revoking again is a clean 409, not a crash  [http=409 unknown agent or already halted]
+PASS  [K5] revoking an unknown agent is rejected without side effects
+PASS  [K6] the pulled order shows state=revoked in the registry  [W-4419=revoked W-4417=active]
+PASS  [K7] a running agent observes the kill on its next call, measured live  [latency=0.027s]
+PASS  [K8] the journal survives a kill and still verifies
+PASS  [A1] the node seals a signed anchor on every decision  [37 seals, head=67bada3bb7045178]
+PASS  [A2] the signed anchor matches the live registry head
+PASS  [A3] a consistent rewrite of the log is caught by the anchor  [registry head does not match the signed anchor - rewrite detected]
+PASS  [A4] the honest head still verifies against the same anchor
+PASS  [A5] an anchor edited to hide a rewrite fails its signature check  [signature invalid -> forger needs the issuer key]
+
+29/29 security-boundary checks passed
+
+===== [redteam] python3 scripts/redteam_rewrite_gap.py =====
+----- exit=0  wall=1s -----
+live registry : 3 entries, honest verify=True
+ATTACK (bare chain) : verify=True  <- the log alone is fooled
+DEFENCE (anchor)    : {'anchored': True, 'ok': False, 'signed': True, 'reason': 'registry head does not match the signed anchor - rewrite detected', 'anchor_head': '67bada3bb7045178', 'registry_head': 'c0ad4e0fb81e4a5a', 'anchor_length': 3, 'registry_length': 3}
+honest head         : {'anchored': True, 'ok': True, 'signed': True, 'head': '67bada3bb7045178', 'length': 3, 'anchors': 37}
+
+RESULT  the bare chain is fooled; the anchored node is not.
+        To hide the rewrite an attacker must also forge the anchor signature,
+        which needs the issuer key they do not hold.
+
+===== [upstream_check] python3 scripts/upstream_check.py =====
+----- exit=0  wall=2s -----
+PASS  the over-limit transfer never reached the upstream  [upstream saw ['crm.read']]
+PASS  an in-limit transfer is executed by the real upstream  [result={"amount_pln": 42000.0, "decision": "allow", "executed": true, "ok": true, "reason": "within 50,000 PLN limit", "receipt": "2d137eaf", "rows": 1, "tool": "payme]
+PASS  the upstream's log shows exactly one transfer
+PASS  deploy stops at require-human
+PASS  a queued deploy never reached the upstream
+PASS  a revoked agent cannot call again
+PASS  neither the forged nor the revoked call reached the upstream  [upstream saw ['crm.read', 'payments.transfer']]
+PASS  the receipt chain recomputes from genesis  [10 receipts, head 9f88d602aa867790]
+PASS  the node's executor counter matches the upstream's log  [node={'crm.read': 1, 'payments.transfer': 1} upstream=['crm.read', 'payments.transfer']]
+
+upstream access log: /root/.hermes/hackyeah/f2/work-public/warrnt/state/upstream/upstream_calls.jsonl
+upstream log contents: ["crm.read", "payments.transfer"]
+
+17/17 checks passed
+
+===== [console_check] python3 scripts/console_check.py =====
+----- exit=0  wall=2s -----
+PASS  PII export never reached the upstream (counter == 0)  [crm.bulk_export=0]
+PASS  chain still verifies after the vector
+PASS  stop latency measured by the node  [last_stop=0.2007298469543457]
+PASS  head is anchored  [{"anchored": true, "ok": true, "signed": true, "head": "19bd0889f56d37ac", "leng]
+PASS  kill switch: POST /revoke fin-reconcile accepted  [{"agent": "fin-reconcile", "state": "halted", "warrant": "W-4417", "revoked_at": 1790986992.6992671}]
+PASS  agent is halted in the state the screen renders
+PASS  its warrant is revoked
+PASS  a 'revoked' receipt is now the head  [{"t": "00:23:12", "decision": "revoked", "agent": "fin-reconcile", "tool": "/revoke", "warrant": "W-]
+PASS  revoked counter advanced  [1 -> 2]
+PASS  halted agent leaves the target list
+PASS  revoke is idempotent (second press = 409)  [HTTP 409]
+PASS  chain survives the kill switch
+
+CONSOLE CHECK: 35/35 passed
+
+===== [first_demo] python3 scripts/first_demo_path.py =====
+----- exit=0  wall=2s -----
+  agent   deploy-agent     state=active   warrant=W-4421
+  executor_calls : {'payments.read': 1, 'crm.read': 4}
+  receipts       : [{'t': '00:23:14', 'decision': 'revoked', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'agent halted · warrant W-4419 pulled', 'hash': '62547259', 'what': '<code>crm.read</code> support-copilot → REVOKED', 'meta': 'order W-4419 · agent halted · warrant W-4419 pulled'}, {'t': '00:23:13', 'decision': 'revoked', 'agent': 'support-copilot', 'tool': '/revoke', 'warrant': 'W-4419', 'reason': 'warrant pulled by operator', 'hash': '26fd4a70', 'what': '<code>/revoke</code> support-copilot → REVOKED', 'meta': 'order W-4419 · warrant pulled by operator'}, {'t': '00:23:13', 'decision': 'deny', 'agent': 'support-copilot', 'tool': 'crm.bulk_export', 'warrant': 'W-4419', 'reason': 'export=false · no PII fields in warrant scope · PII fields requested: email, pesel', 'hash': '51f900c8', 'what': '<code>crm.bulk_export</code> support-copilot → DENY before execution', 'meta': 'order W-4419 · export=false · no PII fields in warrant scope · PII fields requested: email, pesel'}, {'t': '00:23:13', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': '54fb31f0', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '00:23:13', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': '01a8bbaa', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '00:23:13', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': 'e15c8251', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '00:23:13', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': 'ebe045e7', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '00:23:13', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': 'e4173762', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '00:23:13', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': '07ec66dc', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '00:23:13', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': 'bfdc3547', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '00:23:13', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': '577d9163', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '00:23:13', 'decision': 'allow', 'agent': 'fin-reconcile', 'tool': 'payments.read', 'warrant': 'W-4417', 'reason': 'read-only · in scope', 'hash': '42acb174', 'what': '<code>payments.read</code> fin-reconcile → ALLOW', 'meta': 'order W-4417 · read-only · in scope'}, {'t': '00:23:13', 'decision': 'allow', 'agent': 'fin-reconcile', 'tool': 'payments.read', 'warrant': 'W-4417', 'reason': 'read-only · in scope', 'hash': '752ab2ec', 'what': '<code>payments.read</code> fin-reconcile → ALLOW', 'meta': 'order W-4417 · read-only · in scope'}]
+  chain          : {'ok': True, 'length': 13, 'head': '625472599f62601e'}
+
+====================================================================
+5. ANCHOR — the head is signed with the issuer key
+====================================================================
+  {"anchors": 14, "last": {"head": "625472599f62601eb6684113b75ffa489360d365e6285428ec19d131deba56f2", "length": 13, "ts": 1790986994.0380185, "sig": "df2712b76360f99a…"}, "verdict": {"anchored": true, "ok": true, "signed": true, "head": "625472599f62601e", "length": 13, "anchors": 14}}
+
+====================================================================
+VERDICT
+====================================================================
+FIRST DEMO PATH: PASS — the chain ran end to end
+
+===== [demo_vector] node on :37497, then demo_client + checkpoint_p23 =====
+----- demo_client exit=0 | checkpoint_p23 exit=0 | wall=1s -----
+PASS  the vector ran: reads allowed inside scope  [2 allow: ['payments.read', 'crm.read']]
+PASS  the rogue export was denied  [deny tools: ['crm.bulk_export']]
+PASS  deny happened BEFORE execution (upstream counter unchanged)  [crm.bulk_export 0->0]
+PASS  zero rows left the perimeter  [rows_left_perimeter=0]
+PASS  the running agent observed the revocation on its next call  [latency=0.144s]
+PASS  revocation latency was measured, not declared  [0.144s]
+PASS  the receipt chain recomputes from genesis  [13 receipts, head 560fbce3a424aea5]
+
+7/7 checkpoint checks passed
+
+===== [console_shot] python3 scripts/console_shot.py --outdir /root/.hermes/hackyeah/f2/out-public/shots =====
+----- exit=0  wall=5s -----
+node up at http://127.0.0.1:35359
+  wrote /root/.hermes/hackyeah/f2/out-public/shots/console-live.png (184975 bytes)
+  qa: QA source=live scrollH=813 innerH=813 tiles=4 allInView=true
+  wrote /root/.hermes/hackyeah/f2/out-public/shots/console-offline-demo.png (156417 bytes)
+
+===== SUMMARY =====
+pytest                 exit=0   wall=1s
+verify_live            exit=0   wall=1s
+security               exit=0   wall=1s
+redteam                exit=0   wall=1s
+upstream_check         exit=0   wall=2s
+console_check          exit=0   wall=2s
+first_demo             exit=0   wall=2s
+demo_vector            exit=0   wall=1s
+console_shot           exit=0   wall=5s
+
+clone kept at : /root/.hermes/hackyeah/f2/work-public/warrnt
+finished      : 2026-10-03T00:23:20+0000
+VERDICT       : ALL GATES PASS on a clean machine

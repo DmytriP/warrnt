@@ -1,0 +1,50 @@
+[
+  {
+    "agent": "fin-reconcile",
+    "tool": "payments.read",
+    "decision": "allow",
+    "reason": "read-only · in scope",
+    "note": "read inside scope"
+  },
+  {
+    "agent": "support-copilot",
+    "tool": "crm.read",
+    "decision": "allow",
+    "reason": "read-only · in scope",
+    "note": "read inside scope"
+  },
+  {
+    "agent": "support-copilot",
+    "tool": "crm.bulk_export",
+    "decision": "deny",
+    "reason": "export=false · no PII fields in warrant scope · PII fields requested: email, pesel",
+    "note": "PII export outside warrant scope"
+  },
+  {
+    "proof": "upstream executions of crm.bulk_export",
+    "before": 0,
+    "after": 0,
+    "rows_left_perimeter": 0
+  },
+  {
+    "agent": "support-copilot",
+    "decision": "revoked",
+    "observed_on_next_call": true,
+    "stop_latency_s": 0.144
+  },
+  {
+    "chain": {
+      "ok": true,
+      "length": 13,
+      "head": "560fbce3a424aea5",
+      "anchor": {
+        "anchored": true,
+        "ok": true,
+        "signed": true,
+        "head": "560fbce3a424aea5",
+        "length": 13,
+        "anchors": 14
+      }
+    }
+  }
+]

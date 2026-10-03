@@ -1,0 +1,9 @@
+pytest                 exit=0   wall=1s
+verify_live            exit=0   wall=1s
+security               exit=0   wall=1s
+redteam                exit=0   wall=1s
+upstream_check         exit=0   wall=2s
+console_check          exit=0   wall=2s
+first_demo             exit=0   wall=2s
+demo_vector            exit=0   wall=1s
+console_shot           exit=0   wall=5s

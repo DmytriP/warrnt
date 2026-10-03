@@ -1,0 +1,9 @@
+PASS  the vector ran: reads allowed inside scope  [2 allow: ['payments.read', 'crm.read']]
+PASS  the rogue export was denied  [deny tools: ['crm.bulk_export']]
+PASS  deny happened BEFORE execution (upstream counter unchanged)  [crm.bulk_export 0->0]
+PASS  zero rows left the perimeter  [rows_left_perimeter=0]
+PASS  the running agent observed the revocation on its next call  [latency=0.144s]
+PASS  revocation latency was measured, not declared  [0.144s]
+PASS  the receipt chain recomputes from genesis  [13 receipts, head 560fbce3a424aea5]
+
+7/7 checkpoint checks passed
