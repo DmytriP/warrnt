@@ -214,6 +214,11 @@
   <div class="cells" id="taxoCells"></div>
 </section>
 
+<section class="taxo" aria-label="Break-glass: the pause a named person may open">
+  <h2><span class="idx">06</span> Break-glass <span class="c">one named person · one tool · ≤ 15 min · one call · a review is owed · the class floor never moves</span></h2>
+  <div class="cells" id="bgCells"></div>
+</section>
+
 <footer>
   <div class="k">Chain integrity <b id="kChain" class="up">—</b></div>
   <div class="k">Receipts <b id="kRec">0</b></div>
@@ -242,7 +247,7 @@ const hh = d => pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()
 
 let MODE = 'demo';
 const S = {revoked:0, lastStop:null, agents:[], warrants:[], receipts:[], exec:{}, chain:{},
-           anchor:{}, arms:0};
+           anchor:{}, arms:0, breakglass:{}};
 
 /* ---------- rendering ---------- */
 function pill(st){
@@ -356,7 +361,28 @@ function renderTaxo(){
       +'</div>';
   }).join('');
 }
-function renderAll(){ renderAgents(); renderTaxo(); renderWarrants(); renderReceipts(); renderTargets(); renderKpi(); }
+/* ---------- 06. break-glass: a policy pause, opened by a name (live from .breakglass) ---- */
+function renderBg(){
+  const bg = S.breakglass || {};
+  const rows = bg.grants || [];
+  if(!rows.length){
+    $('bgCells').innerHTML = '<div class="cell"><div class="cls">no grant open</div>'
+      +'<div class="who">a policy pause waits for a person</div>'
+      +'<div class="mean">an irreversible act has no grant to give \u2014 the taxonomy is the floor</div>'
+      +'<div class="tools">issued by the operator: POST /api/breakglass</div></div>';
+    return;
+  }
+  $('bgCells').innerHTML = rows.map(g=>{
+    const left = (g.expires_in_s==null) ? '\u2014' : 'expires in '+g.expires_in_s+' s';
+    const owed = (bg.postmortem_required||[]).indexOf(g.id) >= 0 ? ' \u00b7 post-mortem owed' : '';
+    const sig = (g.sig_ok===false) ? ' \u00b7 SIGNATURE INVALID' : '';
+    return '<div class="cell dec-'+String(g.state).replace(/[^a-z_+]/g,'_')+'">'
+      +'<div class="cls">'+g.id+' \u00b7 '+g.state+'</div><div class="who">'+g.human+'</div>'
+      +'<div class="mean" title="'+g.reason+'">'+g.agent+' \u2192 '+g.tool+' \u00b7 '+g.cls+'</div>'
+      +'<div class="tools">'+left+owed+sig+'</div></div>';
+  }).join('');
+}
+function renderAll(){ renderAgents(); renderTaxo(); renderBg(); renderWarrants(); renderReceipts(); renderTargets(); renderKpi(); }
 
 function logKill(txt){
   const el=document.createElement('div'); el.className='row';
@@ -375,7 +401,7 @@ async function poll(){
   S.revoked=d.revoked||0; S.lastStop=d.last_stop;
   S.agents=d.agents||[]; S.warrants=d.warrants||[];
   S.receipts=(d.receipts||[]).map((x,i)=>Object.assign({},x,{fresh:i===0}));
-  S.exec=d.executor_calls||{}; S.chain=d.chain||{};
+  S.exec=d.executor_calls||{}; S.chain=d.chain||{}; S.breakglass=d.breakglass||{};
   if(d.actions&&d.actions.length) S.actions=d.actions;
   try{ const a=await fetch('/anchor',{cache:'no-store'}); if(a.ok) S.anchor=await a.json(); }catch(e){}
   renderAll();
@@ -395,6 +421,11 @@ async function bootLive(){
 /* ---------- DEMO: offline story (file:// copy) ---------- */
 function seedState(){
   return {revoked:0,lastStop:null,exec:{},chain:{ok:true,length:0},
+    breakglass:{max_ttl_s:900,unliftable:['irreversible','authorize'],postmortem_required:['BG-0002'],
+      grants:[{id:'BG-0001',human:'Anna Kowalska',agent:'report-bot',tool:'crm.bulk_export',cls:'read_personal',
+               reason:'board deck: 12 rows, one afternoon',state:'used',expires_in_s:0,sig_ok:true},
+              {id:'BG-0002',human:'Piotr Nowak',agent:'report-bot',tool:'crm.bulk_export',cls:'read_personal',
+               reason:'night shift, customer win-back list',state:'active',expires_in_s:742,sig_ok:true}]},
     agents:[
       {id:'fin-reconcile',  role:'Finance', state:'active',warrant:'W-4417',ttl:900,ttl0:900,last:'payments.read · ALLOW'},
       {id:'support-copilot',role:'Support', state:'active',warrant:'W-4419',ttl:420,ttl0:420,last:'crm.read · ALLOW'},

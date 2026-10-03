@@ -74,7 +74,8 @@ def main() -> int:
               f"chain={health['chain']}")
 
         tokens = demo.fetch_tokens(url)
-        check("three seed warrants issued", len(tokens) == 3, ",".join(sorted(tokens)))
+        check("every seed warrant issued", set(tokens) == {"fin-reconcile", "support-copilot",
+              "deploy-agent", "report-bot"}, ",".join(sorted(tokens)))
 
         warrants = demo.get(url, "/warrants")
         check("every warrant carries a valid signature",

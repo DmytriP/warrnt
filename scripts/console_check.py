@@ -129,9 +129,9 @@ def main() -> int:
         for field in ("agents", "warrants", "receipts", "executor_calls", "chain",
                       "revoked", "last_stop"):
             check(f"/api/state has '{field}'", field in st)
-        check("three seed agents are live", len(st["agents"]) == 3,
+        check("all four seed agents are live", len(st["agents"]) == 4,
               f"{len(st['agents'])} agents")
-        check("three signed warrants", len(st["warrants"]) == 3 and
+        check("four signed warrants", len(st["warrants"]) == 4 and
               all(w["sig_ok"] for w in st["warrants"]))
         check("chain verifies at boot", st["chain"].get("ok") is True, json.dumps(st["chain"])[:80])
 
