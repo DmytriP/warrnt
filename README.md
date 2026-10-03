@@ -17,6 +17,16 @@ call.
 This repository is **one node, not a platform**: no admin UI, no multi-tenant issuer, no
 stdio transport. Keep it that way until the node is undeniable.
 
+## Demo — 2:40, on the live node
+
+[`warrnt-demo-f1.mp4`](https://github.com/indrad3v4/warrnt/releases/download/demo-f1/warrnt-demo-f1.mp4) — clone → tests → node → console → the 3:47 deny → the brake → the gates.
+
+![the deny, on the node's own screen](docs/f1/poster-deny.jpg)
+
+Every frame is machine-made: the console screenshots come from headless Chromium pointed at
+the node's own `GET /`, the terminal lines are re-run from this repository's scripts, and the
+numbers are read out of a live capture (`docs/f1/`). Nothing in it is typed by hand.
+
 ## Quickstart
 
 ```bash
@@ -206,3 +216,23 @@ node's receipts and once from the upstream's log. The negative claim ("the denie
 never reached upstream") is read from the upstream process, not from the node.
 
 Evidence: `docs/d1-upstream-2026-10-03.out`.
+
+## The live capture behind the video
+
+`docs/f1/` holds the raw material of the walkthrough, taken from one boot of the node
+(`docs/f1/capture.py` drives it):
+
+| File | What it is |
+|---|---|
+| `transcript.json` | the five beats of the 3:47 vector, read from the node at each step |
+| `shot-1-initial.png` … `shot-4-revoked.png` | the node's console, rendered by headless Chromium from `GET /` |
+| `receipts.jsonl` | the registry as written by that run — the deny and the `revoked` entries are in it |
+| `verify-after-revoke.json`, `anchor-after-revoke.json` | chain recomputed from genesis, and the signed head, after the brake |
+| `f1-gates-2026-10-03.out` | all six gates re-run verbatim on this revision |
+
+The deny is `0cc580b0` (`crm.bulk_export`, `email`+`pesel`, 12000 rows, `-32001`,
+`rows_after: 0`); the brake reports `support-copilot HALTED`, `W-4419 REVOKED`, time to stop
+`0.132 s`; the chain at the end is 39 receipts with head `fd1dd0b8`, anchor signed.
+
+Reproduce it: `WARRNT_DEV=1 python3 -m warrnt serve --port 8099` in one shell,
+`python3 docs/f1/capture.py` in another.

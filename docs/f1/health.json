@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "node": "warrnt",
+  "chain": {
+    "ok": true,
+    "length": 0,
+    "head": "0000000000000000",
+    "anchor": {
+      "anchored": true,
+      "ok": true,
+      "signed": true,
+      "head": "0000000000000000",
+      "length": 0,
+      "anchors": 1
+    }
+  }
+}

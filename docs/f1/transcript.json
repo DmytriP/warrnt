@@ -1,0 +1,147 @@
+{
+  "url": "http://127.0.0.1:34951",
+  "steps": [
+    {
+      "beat": "initial",
+      "state": {
+        "revoked": 0,
+        "last_stop": null,
+        "agents": [
+          {
+            "id": "fin-reconcile",
+            "role": "Finance",
+            "state": "active",
+            "warrant": "W-4417",
+            "last": "warrant issued · idle",
+            "ttl": 899,
+            "ttl0": 900.0
+          },
+          {
+            "id": "support-copilot",
+            "role": "Support",
+            "state": "active",
+            "warrant": "W-4419",
+            "last": "warrant issued · idle",
+            "ttl": 419,
+            "ttl0": 420.0
+          },
+          {
+            "id": "deploy-agent",
+            "role": "Platform",
+            "state": "active",
+            "warrant": "W-4421",
+            "last": "warrant issued · idle",
+            "ttl": 149,
+            "ttl0": 150.0
+          }
+        ],
+        "warrants": [
+          {
+            "id": "W-4417",
+            "agent": "fin-reconcile",
+            "scope": "payments.read · ≤ 50,000 PLN · read-only",
+            "ttl": 899,
+            "ttl0": 900.0,
+            "state": "active",
+            "sig": "8c287a1cbc7af998",
+            "sig_ok": true
+          },
+          {
+            "id": "W-4419",
+            "agent": "support-copilot",
+            "scope": "crm.read · export=false · no PII fields",
+            "ttl": 419,
+            "ttl0": 420.0,
+            "state": "active",
+            "sig": "a89f36e3aada8cac",
+            "sig_ok": true
+          },
+          {
+            "id": "W-4421",
+            "agent": "deploy-agent",
+            "scope": "infra.plan · deploy ⇒ require-human",
+            "ttl": 149,
+            "ttl0": 150.0,
+            "state": "active",
+            "sig": "d9cfa8cf222038b5",
+            "sig_ok": true
+          }
+        ],
+        "receipts": [],
+        "executor_calls": {},
+        "chain": {
+          "ok": true,
+          "length": 0,
+          "head": "0000000000000000"
+        }
+      }
+    },
+    {
+      "beat": "two-allows",
+      "allows": [
+        {
+          "agent": "fin-reconcile",
+          "tool": "payments.read",
+          "decision": "allow"
+        },
+        {
+          "agent": "support-copilot",
+          "tool": "crm.read",
+          "decision": "allow"
+        }
+      ]
+    },
+    {
+      "beat": "deny",
+      "reply": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "code": -32001,
+          "message": "export=false · no PII fields in warrant scope · PII fields requested: email, pesel",
+          "data": {
+            "decision": "deny",
+            "executed": false,
+            "scope": "crm.read · export=false · no PII fields",
+            "warrant": "W-4419",
+            "fields": [
+              "email",
+              "pesel"
+            ],
+            "receipt": "0cc580b0",
+            "rows_after": 0
+          }
+        }
+      },
+      "executions_before": 0,
+      "executions_after": 0,
+      "rows_left_perimeter": 0
+    },
+    {
+      "beat": "revoke",
+      "reply": {
+        "agent": "support-copilot",
+        "state": "halted",
+        "warrant": "W-4419",
+        "revoked_at": 1790986138.6438768
+      },
+      "stop_latency_s": 0.133
+    },
+    {
+      "beat": "final",
+      "chain": {
+        "ok": true,
+        "length": 39,
+        "head": "fd1dd0b86e3c9759"
+      },
+      "kpis": {
+        "executor_calls": {
+          "payments.read": 1,
+          "crm.read": 17
+        },
+        "revoked": 1,
+        "last_stop": 0.13176608085632324
+      }
+    }
+  ]
+}

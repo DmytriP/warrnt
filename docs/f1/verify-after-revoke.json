@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "length": 39,
+  "head": "fd1dd0b86e3c9759",
+  "anchor": {
+    "anchored": true,
+    "ok": true,
+    "signed": true,
+    "head": "fd1dd0b86e3c9759",
+    "length": 39,
+    "anchors": 40
+  }
+}

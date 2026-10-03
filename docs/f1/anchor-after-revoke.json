@@ -1,0 +1,17 @@
+{
+  "anchors": 40,
+  "last": {
+    "head": "fd1dd0b86e3c9759a5e3106c89fd41961c21160c8165870b476b6415c899f4c4",
+    "length": 39,
+    "ts": 1790986138.7726264,
+    "sig": "7afaa15505e10a2b…"
+  },
+  "verdict": {
+    "anchored": true,
+    "ok": true,
+    "signed": true,
+    "head": "fd1dd0b86e3c9759",
+    "length": 39,
+    "anchors": 40
+  }
+}
