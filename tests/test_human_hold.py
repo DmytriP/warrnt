@@ -244,3 +244,37 @@ def test_a_question_naming_an_unknown_action_admits_it():
     assert out["evidence"]["action_id"] is None
     assert "no action A-9999" in out["answer"]
     assert out["grounded"] is True
+
+
+# --------------------------------------------- the boundary, counted (one number, two uses)
+def test_a_denied_action_never_reached_for_the_boundary(client, rec):
+    data = call(client, "support-copilot", "crm.bulk_export", {"rows": 5})["error"]["data"]
+    assert data["decision"] == "deny"
+    one = client.get(f"/api/actions/{data['action_id']}").json()
+    assert one["boundary_attempts"] == 0 and one["upstream_contacted"] is False
+    assert rec.calls == []
+
+
+def test_an_allowed_action_reached_the_boundary_exactly_once(client, rec):
+    aid = call(client, "support-copilot", "crm.read", {"table": "tickets"})["result"]["action_id"]
+    one = client.get(f"/api/actions/{aid}").json()
+    assert one["boundary_attempts"] == 1 and one["upstream_contacted"] is True
+    assert len(rec.calls) == 1, "one attempt, one call - the counter is not a wish"
+
+
+def test_a_held_action_counts_nothing_until_a_person_approves(client, rec):
+    aid = call(client, "deploy-agent", "infra.deploy",
+               {"target": "prod"})["error"]["data"]["action_id"]
+    assert client.get(f"/api/actions/{aid}").json()["boundary_attempts"] == 0
+    assert rec.calls == [], "a hold that has not been released has not reached out"
+    client.post(f"/api/actions/{aid}/approve", json={"by": "Indra"})
+    one = client.get(f"/api/actions/{aid}").json()
+    assert one["boundary_attempts"] == 1 and one["upstream_contacted"] is True
+    assert len(rec.calls) == 1
+
+
+def test_the_separation_of_duties_refusal_is_the_kernel_vocabulary():
+    """The refusal type has one home, so a catcher catches every refusal of this kind."""
+    from warrnt.controlplane import SeparationOfDutiesRefused
+
+    assert issubclass(SeparationOfDutiesRefused, RuntimeError)

@@ -11,6 +11,7 @@ SEED_SPECS: list[WarrantSpec] = [
     WarrantSpec(
         id="W-4417", agent="fin-reconcile", role="Finance",
         scope="payments.read · ≤ 50,000 PLN · read-only", ttl=900.0,
+        principal="operator-001", on_behalf_of="operator-001",
         rules=[
             Rule(tool="payments.read", effect="allow", reason="read-only · in scope"),
             Rule(
@@ -23,6 +24,7 @@ SEED_SPECS: list[WarrantSpec] = [
     WarrantSpec(
         id="W-4419", agent="support-copilot", role="Support",
         scope="crm.read · export=false · personal fields stripped", ttl=420.0,
+        principal="operator-001", on_behalf_of="operator-001",
         rules=[
             # A read that names a personal field is authorised but stripped: the copilot
             # still answers the ticket, the PII never reaches it (decision ``redact``).
@@ -39,6 +41,7 @@ SEED_SPECS: list[WarrantSpec] = [
     WarrantSpec(
         id="W-4423", agent="report-bot", role="Analytics",
         scope="crm.bulk_export ⇒ require-human · break-glass ≤ 15 min", ttl=1800.0,
+        principal="operator-001", on_behalf_of="operator-001",
         rules=[
             Rule(tool="crm.bulk_export", effect="human",
                  reason="a mass export is a person's decision, not a schedule's"),
@@ -47,6 +50,7 @@ SEED_SPECS: list[WarrantSpec] = [
     WarrantSpec(
         id="W-4421", agent="deploy-agent", role="Platform",
         scope="infra.plan · deploy ⇒ require-human", ttl=150.0,
+        principal="operator-001", on_behalf_of="operator-001",
         rules=[
             Rule(tool="infra.plan", effect="allow", reason="read-only · in scope"),
             Rule(tool="infra.deploy", effect="human", reason="deploy requires human authority"),

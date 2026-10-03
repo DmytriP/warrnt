@@ -71,6 +71,11 @@ class WarrantSpec(BaseModel):
     ttl: float
     rules: list[Rule]
     issuer: str = "risk-office"
+    # ACT-2 §1: the human this order is issued to serve, and the party that human acts for.
+    # A warrant is a delegation, so it names both ends: the agent that will act and the
+    # person whose act it is. Empty means "not recorded" - never a guessed identity.
+    principal: str = ""
+    on_behalf_of: str = ""
 
 
 class Warrant(BaseModel):
@@ -87,6 +92,8 @@ class Warrant(BaseModel):
     rules: list[Rule]
     issuer: str
     issued: float
+    principal: str = ""
+    on_behalf_of: str = ""
     sig: str = ""
     state: str = "active"                    # active | revoked | expired
     revoked_at: Optional[float] = None
@@ -101,6 +108,10 @@ class Warrant(BaseModel):
             "rules": [r.model_dump(mode="json") for r in self.rules],
             "issuer": self.issuer,
             "issued": self.issued,
+            # The delegation is part of the grant: change who the order is for and the
+            # signature stops matching, exactly as for the scope it carries.
+            "principal": self.principal,
+            "on_behalf_of": self.on_behalf_of,
         }
 
     def arity(self) -> str:
@@ -115,6 +126,13 @@ class AgentState(BaseModel):
     token: str
     state: str = "active"                    # active | halted
     last: str = "warrant issued · idle"
+    # ACT-2 §1/§2: who this agent acts for, on whose behalf, and what its order actually
+    # grants it. ``entitlements`` are the tools the warrant covers - a warrant is not a
+    # grant of data, so this is the authority the entitlement gate checks against.
+    principal: str = ""
+    on_behalf_of: str = ""
+    entitlements: list[str] = Field(default_factory=list)
+    scope: list[str] = Field(default_factory=list)
 
 
 class BreakGlassGrant(BaseModel):

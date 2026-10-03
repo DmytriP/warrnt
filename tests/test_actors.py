@@ -111,3 +111,36 @@ def test_a_human_operator_is_forbidden_nothing_but_still_needs_an_order():
     """The two gates stay separate: the register binds the human to nothing, the warrant does."""
     reg = ActorRegistry(ACTOR_SEED)
     assert reg.check("risk-operator", "infra.deploy", {"env": "prod"}) is None
+
+
+# --------------------------------------------- the delegation: who the order serves (ACT-2 §1)
+def test_the_agent_identity_names_the_person_the_warrant_serves(client):
+    rows = {a["id"]: a for a in client.get("/agents").json()}
+    copilot = rows["support-copilot"]
+    assert copilot["principal"] == "operator-001"
+    assert copilot["on_behalf_of"] == "operator-001"
+    assert "crm.read" in copilot["entitlements"]
+    assert "crm.bulk_export" not in copilot["entitlements"], "a fenced tool is not an entitlement"
+
+
+def test_one_builder_makes_every_agent_whichever_path_it_came_from(client):
+    """A live warrant and a seeded one must carry the same facts - same builder, same fields."""
+    from warrnt.models import Rule, WarrantSpec
+
+    p = client.app.state.proxy
+    warrant = p.issuer.issue(WarrantSpec(
+        id="W-9999", agent="late-agent", role="Treasury", scope="fx.read_rate · read-only",
+        ttl=60.0, rules=[Rule(tool="fx.read_rate")],
+        principal="operator-002", on_behalf_of="operator-002"))
+    a = p._new_agent(warrant)
+    assert (a.principal, a.on_behalf_of) == ("operator-002", "operator-002")
+    assert a.entitlements == ["fx.read_rate"]
+    assert a.scope == ["fx.read_rate", "read-only"]
+
+
+def test_changing_who_the_order_serves_breaks_the_seal(client):
+    p = client.app.state.proxy
+    warrant = next(w for w in p.warrants.values() if w.id == "W-4419")
+    assert p.issuer.signature_ok(warrant)
+    warrant.principal = "someone-else"
+    assert not p.issuer.signature_ok(warrant)

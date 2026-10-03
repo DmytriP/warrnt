@@ -35,6 +35,7 @@ and prints it once at startup.
 """
 from __future__ import annotations
 
+import hashlib
 import hmac
 import os
 import secrets
@@ -44,6 +45,8 @@ from typing import Any, Optional
 
 from fastapi import FastAPI, Header, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+
+
 from pydantic import BaseModel
 
 from .actions import classify
@@ -55,6 +58,46 @@ from .config import Settings
 from .models import Decision
 from .policy import PolicyEngine
 from .proxy import MCPProxy, _receipt_row
+
+
+from .proxy import MCPProxy
+
+
+def upstream_log_path() -> str:
+    """The path of the upstream's own access log, as the deployment names it.
+
+    The tool server keeps its own journal of every call it received (``serve_tenet.sh``
+    points it at an env var). The reader has to honour *that* name, or the upstream logs a
+    real call and the evidence endpoint reports none - a chain that looks like nothing
+    happened. Returns ``""`` when nothing is configured: an absent log is reported as
+    absent, never as an empty proof.
+
+    Names are tried in the order the deployment uses: the product name first, then the
+    historical ones, so an old environment keeps working unchanged.
+    """
+    for name in ("TENET_UPSTREAM_LOG", "WARRNT_UPSTREAM_LOG", "FRANKFURTER_LOG"):
+        value = os.environ.get(name, "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _sha256_of(path: str | None) -> str:
+    """SHA-256 of a file's bytes, or ``""`` when there is no file to digest.
+
+    One implementation, so the console, the API and an answer can never disagree about
+    which artifact they are pointing at. A missing path is not an error: it is the honest
+    "no artifact".
+    """
+    if not path:
+        return ""
+    try:
+        with open(path, "rb") as fh:
+            return hashlib.sha256(fh.read()).hexdigest()
+    except OSError:
+        return ""
+
+
 from .registry import AppendOnlyRegistry
 from .upstream import build_upstream, ExecutionCounter
 from .warrants import WarrantIssuer, refresh_state
@@ -197,7 +240,11 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
         out = []
         for a in p.agents.values():
             row = {"id": a.id, "role": a.role, "warrant": a.warrant, "state": a.state,
-                   "last": a.last}
+                   "last": a.last,
+                   # ACT-2 §1/§2: the same identity facts a control plane projects - who acts,
+                   # for whom, and which tools the order entitles it to.
+                   "principal": a.principal, "on_behalf_of": a.on_behalf_of,
+                   "entitlements": list(a.entitlements), "scope": list(a.scope)}
             if settings.dev:
                 row["token"] = a.token
             out.append(row)
@@ -275,7 +322,6 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
     @app.get("/agents")
     def agents() -> list[dict[str, Any]]:
         return agents_payload()
-
 
     # -------------------------------------------------------------- interception
     @app.post("/mcp")
