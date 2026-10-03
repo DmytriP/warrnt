@@ -35,6 +35,8 @@ python3 -m pytest -q                 # 50 unit + API tests
 python3 scripts/verify_live.py       # 20 checks against a live uvicorn process
 python3 scripts/security_boundaries.py   # 29 adversarial checks (journal/permissions/kill-switch)
 python3 scripts/redteam_rewrite_gap.py   # the rewrite attack, before and after the anchor
+python3 scripts/upstream_check.py    # 17 checks against a real MCP server (two processes, its own log)
+python3 scripts/console_check.py     # 35 checks: the console is served and its kill button is real
 ```
 
 P2.3 control checkpoint — assert the whole vector happened on a live node:
@@ -176,16 +178,24 @@ warrnt/
   api.py         FastAPI app factory + routes
   cli.py         `python -m warrnt serve|demo|state`
 tests/           50 tests: signing, TTL, guards, chain tamper, anchor, end-to-end API
-scripts/         verify_live.py, upstream_check.py, mcp_fixture_server.py,
-                 security_boundaries.py, redteam_rewrite_gap.py, demo_client.py
-docs/            architecture.md
+scripts/         first_demo_path.py, verify_live.py, upstream_check.py,
+                 mcp_fixture_server.py, security_boundaries.py,
+                 redteam_rewrite_gap.py, console_check.py, console_shot.py,
+                 checkpoint_p23.py, demo_client.py
+docs/            architecture.md + the *.out transcripts of the last green run
 ```
 
 ## What is next
 
-* P3 — the single dense console screen (agents / warrants / kill / proof) against `/state`.
-* Wire `/revoke` from the screen, not just the API.
-* stdio transport — not claimed until it exists.
+* **stdio transport** — the node fronts its upstream over streamable HTTP only; a stdio
+  transport is not claimed until it exists.
+* **Ephemeral identity** — agent tokens are static per order (enough for a 24-hour demo);
+  rotation and short-lived credentials are the next step.
+* **Anchor on external storage** — `WARRNT_ANCHOR` already points anywhere; production
+  would place it on a separate host or WORM storage rather than beside the registry.
+
+The console screen (below) and the `/revoke` button on it are **already built** — the node
+serves `/` from the package and the button POSTs to the node, not to the page.
 
 ## Live proof against a real upstream
 
