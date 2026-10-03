@@ -25,6 +25,8 @@ widening the tool it covers, extending the window - invalidates it, exactly like
 """
 from __future__ import annotations
 
+import threading
+
 from typing import Any, Callable, Optional
 
 from .models import BreakGlassGrant, Decision
@@ -51,6 +53,9 @@ class BreakGlassRegistry:
         self._now = now
         self.registry = registry
         self.grants: dict[str, BreakGlassGrant] = {}
+        # One grant, one execution: claim() spends under this lock so two racing calls
+        # cannot both read the same active grant (finding V5).
+        self._lock = threading.RLock()
         self._seq = 0
 
     # ------------------------------------------------------------------ grant
@@ -119,15 +124,26 @@ class BreakGlassRegistry:
     def remaining_s(self, grant: BreakGlassGrant) -> float:
         return grant.remaining(self._now())
 
+    def claim(self, grant_id: str, by_tool: str) -> Optional[BreakGlassGrant]:
+        """Find-and-spend in one critical section (finding V5).
+
+        ``active()`` only reads, so two calls arriving together could both see the same grant
+        and both execute. The claim is the atomic act: the winner gets the grant, the loser
+        gets ``None`` and is refused.
+        """
+        with self._lock:
+            return self.consume(grant_id, by_tool)
+
     def consume(self, grant_id: str, by_tool: str) -> Optional[BreakGlassGrant]:
         """A grant is single-use: the first call it lifts spends it."""
-        grant = self.grants.get(grant_id)
-        if grant is None or grant.state != "active":
-            return None
-        grant.state = "used"
-        grant.used_at = self._now()
-        grant.used_by = by_tool
-        return grant
+        with self._lock:
+            grant = self.grants.get(grant_id)
+            if grant is None or grant.state != "active":
+                return None
+            grant.state = "used"
+            grant.used_at = self._now()
+            grant.used_by = by_tool
+            return grant
 
     def revoke(self, grant_id: str) -> Optional[BreakGlassGrant]:
         grant = self.grants.get(grant_id)

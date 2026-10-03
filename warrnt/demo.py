@@ -6,6 +6,8 @@ measured on the live node - the transcript is not a script.
 """
 from __future__ import annotations
 
+import os
+
 import json
 import threading
 import time
@@ -40,7 +42,8 @@ def get(url: str, path: str) -> dict:
 def post(url: str, path: str, body: dict) -> dict:
     req = urllib.request.Request(url.rstrip("/") + path,
                                  data=json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json"})
+                                 headers={"Content-Type": "application/json",
+                      "X-WARRNT-Admin": os.environ.get("WARRNT_ADMIN_TOKEN", "")})
     with urllib.request.urlopen(req, timeout=5) as resp:
         return json.loads(resp.read().decode())
 

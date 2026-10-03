@@ -56,4 +56,7 @@ def test_deleting_an_entry_is_detected(tmp_path):
 def test_head_is_genesis_when_empty(tmp_path):
     reg = AppendOnlyRegistry(str(tmp_path / "empty.jsonl"))
     assert reg.head == AppendOnlyRegistry.GENESIS
-    assert reg.verify() == {"ok": True, "length": 0, "head": AppendOnlyRegistry.GENESIS[:16]}
+    verdict = reg.verify()
+    assert verdict["ok"] is True and verdict["length"] == 0
+    assert verdict["head"] == AppendOnlyRegistry.GENESIS[:16]
+    assert verdict["history"]["rotations"] == 0 and verdict["history"]["archives_ok"] is True

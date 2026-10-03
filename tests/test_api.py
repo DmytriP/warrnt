@@ -178,7 +178,8 @@ def test_dev_tamper_probe_is_off_without_dev_mode(settings, tokens):
     from warrnt.api import create_app
 
     prod = dataclasses.replace(settings, dev=False)
-    with TestClient(create_app(settings=prod)) as c:
+    with TestClient(create_app(settings=prod),
+                    headers={"X-WARRNT-Admin": prod.admin_token}) as c:
         assert c.post("/_dev/tamper", json={"warrant": "W-4419"}).status_code == 403
 
 
