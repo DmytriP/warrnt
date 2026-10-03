@@ -3,6 +3,10 @@
 A proxy that sits in front of an MCP server and decides **before execution** whether an
 agent's tool-call is allowed. Not a dashboard about agents — the thing that stops them.
 
+> The idea behind it is named **TENET** (Latin, "it holds") — the order holds the action, and the
+> record reads the same both ways. This repository is the node that holds it; the idea, the name
+> decision and the rejected alternatives live in `../ai-control-layer/docs/concept-form-and-name.md`.
+
 ```
 identity  ->  actor class  ->  action class  ->  order  ->  policy on parameters  ->  brake  ->  receipt
 ```
