@@ -6,8 +6,15 @@ whole 3:47 vector actually happened on the live node: reads allowed, the PII exp
 denied *before* execution, the operator's revoke observed by the running agent on its
 next call (with a measured latency), and the receipt chain recomputed from genesis.
 
+    WARRNT_DEV=1 python3 -m warrnt serve --port 8111        # terminal A - dev mode matters
     python3 scripts/demo_client.py http://127.0.0.1:8111 > transcript.json
     python3 scripts/checkpoint_p23.py transcript.json
+
+    The two-step above reports 4/7 without WARRNT_DEV=1, and not because anything is broken:
+    two of the checks are about the halt being *observed* by the running agent, and the vector
+    only drives that follow-up call in dev mode. Reproduced both ways - 4/7 without the flag,
+    7/7 with it (stop_latency_s=0.147). `scripts/first_demo_path.py` boots its own node with
+    the flag already set and asserts all seven in one command, which is the shorter path.
 
 With no argument it reads $TMPDIR/warrnt-transcript.json (the platform's own
 scratch directory - the old default was a hard-coded /tmp path).
