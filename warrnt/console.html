@@ -8,7 +8,7 @@
   :root{
     --bg:#0a0e13; --panel:#10151c; --panel2:#0d1219; --line:#1e2733; --line2:#161d27;
     --ink:#e6edf3; --mut:#7d8b9c; --dim:#56616f;
-    --acc:#f0883e; --ok:#3fb950; --deny:#f85149; --hum:#d29922; --hash:#79c0ff;
+    --acc:#f0883e; --ok:#3fb950; --deny:#f85149; --hum:#d29922; --strip:#39c5cf; --hash:#79c0ff;
     --r:10px;
     font-synthesis:none;
   }
@@ -18,7 +18,7 @@
     color:var(--ink);
     font-family:"Nimbus Sans","Helvetica Neue",Helvetica,Arial,sans-serif;
     font-size:13px;line-height:1.35;
-    display:grid;grid-template-rows:52px 1fr 30px;
+    display:grid;grid-template-rows:52px 1fr auto 30px;
     -webkit-font-smoothing:antialiased;
   }
   .mono{font-family:"DejaVu Sans Mono","SFMono-Regular",Menlo,Consolas,monospace}
@@ -124,6 +124,24 @@
   footer .r{margin-left:auto;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;font-size:10.5px}
 
   .halted td{opacity:.62}
+  .p-redact{color:var(--strip);border-color:rgba(57,197,207,.45);background:rgba(57,197,207,.08)}
+
+  /* ---------- 05. the taxonomy: every act has a class, every class has a decider ---------- */
+  .taxo{border-top:1px solid var(--line);background:var(--panel2);min-height:0}
+  .taxo>h2{display:flex;align-items:center;gap:10px;padding:6px 13px;border-bottom:1px solid var(--line2);
+    font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#b9c5d2}
+  .taxo>h2 .idx{color:var(--dim);font-weight:600}
+  .taxo>h2 .c{margin-left:auto;font-size:11px;letter-spacing:.06em;color:var(--mut);font-weight:600;text-transform:none}
+  .taxo .cells{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--line2)}
+  .taxo .cell{background:var(--panel2);padding:6px 11px;min-width:0}
+  .taxo .cls{font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .taxo .who{margin-top:2px;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);font-weight:700}
+  .taxo .cell.dec-human .who{color:var(--hum)}
+  .taxo .cell.dec-operator-human .who{color:var(--deny)}
+  .taxo .cell.dec-machine_receipt .who{color:var(--strip)}
+  .taxo .mean{margin-top:3px;font-size:10px;line-height:1.28;color:var(--mut);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .taxo .tools{margin-top:2px;font-size:9.5px;line-height:1.3;color:var(--dim);font-family:"DejaVu Sans Mono",Menlo,Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 </style>
 </head>
 <body>
@@ -191,6 +209,11 @@
   </section>
 </main>
 
+<section class="taxo" aria-label="Kinds of act and who decides">
+  <h2><span class="idx">05</span> Six kinds of act <span class="c">every act gets a class · every class has a decider · a class may raise the decision, never lower it</span></h2>
+  <div class="cells" id="taxoCells"></div>
+</section>
+
 <footer>
   <div class="k">Chain integrity <b id="kChain" class="up">—</b></div>
   <div class="k">Receipts <b id="kRec">0</b></div>
@@ -224,6 +247,7 @@ const S = {revoked:0, lastStop:null, agents:[], warrants:[], receipts:[], exec:{
 /* ---------- rendering ---------- */
 function pill(st){
   const map={active:['p-active','allowed'],deny:['p-deny','denied'],allow:['p-allow','allowed'],
+             redact:['p-redact','redacted'],
              human:['p-human','human'],expired:['p-exp','expired'],
              revoked:['p-rev','revoked'],halted:['p-halt','halted']};
   const [c,t]=map[st]||['p-exp',st];
@@ -306,7 +330,33 @@ function renderKpi(){
   $('kAnchor').className = S.anchor && S.anchor.verdict && S.anchor.verdict.ok===false ? 'down':'up';
   window.__kpi = {receipts:total, with_warrant:withW, outside_perimeter:ran};
 }
-function renderAll(){ renderAgents(); renderWarrants(); renderReceipts(); renderTargets(); renderKpi(); }
+/* ---------- 05. taxonomy: who decides what (live from /api/state.actions) ---------- */
+const TAXO = [
+ {class:'observe',decider:'machine',decider_text:'the node decides',
+  meaning:'read-only, nothing personal and nothing changed',tools:['infra.plan']},
+ {class:'read_personal',decider:'machine + receipt',decider_text:'the node decides · the fields are on the record',
+  meaning:'reads personal data; the fields read are recorded',tools:['crm.bulk_export','crm.read','payments.read']},
+ {class:'draft',decider:'machine',decider_text:'the node decides',
+  meaning:'produces an artifact that changes nothing outside the boundary',tools:[]},
+ {class:'write_reversible',decider:'machine + valid warrant',decider_text:'the node decides under a signed order',
+  meaning:'changes external state in a way that can be undone',tools:['crm.update']},
+ {class:'irreversible',decider:'human',decider_text:'a person decides · the machine prepares only',
+  meaning:'cannot be undone: money moves, data is deleted, a document is filed',tools:['infra.deploy','payments.transfer']},
+ {class:'authorize',decider:'operator-human only',decider_text:'the operator-human only · no machine may',
+  meaning:'changes the rules themselves — a warrant, a limit, a registration',tools:['policy.edit','warrant.issue','warrant.revoke']}
+];
+function renderTaxo(){
+  const rows = (S.actions && S.actions.length) ? S.actions : TAXO;
+  $('taxoCells').innerHTML = rows.map(r=>{
+    const who = (r.decider_text||'').split('\u00b7')[0].trim();
+    return '<div class="cell dec-'+String(r.decider).replace(/[^a-z_+]/g,'_')+'">'
+      +'<div class="cls">'+r.class+'</div><div class="who">'+who+'</div>'
+      +'<div class="mean" title="'+r.meaning+'">'+r.meaning+'</div>'
+      +'<div class="tools" title="'+((r.tools||[]).join(', ')||'no seed tool yet')+'">'+((r.tools||[]).join(' \u00b7 ')||'\u2014')+'</div>'
+      +'</div>';
+  }).join('');
+}
+function renderAll(){ renderAgents(); renderTaxo(); renderWarrants(); renderReceipts(); renderTargets(); renderKpi(); }
 
 function logKill(txt){
   const el=document.createElement('div'); el.className='row';
@@ -326,6 +376,7 @@ async function poll(){
   S.agents=d.agents||[]; S.warrants=d.warrants||[];
   S.receipts=(d.receipts||[]).map((x,i)=>Object.assign({},x,{fresh:i===0}));
   S.exec=d.executor_calls||{}; S.chain=d.chain||{};
+  if(d.actions&&d.actions.length) S.actions=d.actions;
   try{ const a=await fetch('/anchor',{cache:'no-store'}); if(a.ok) S.anchor=await a.json(); }catch(e){}
   renderAll();
 }
@@ -350,7 +401,7 @@ function seedState(){
       {id:'deploy-agent',   role:'Platform',state:'active',warrant:'W-4421',ttl:150,ttl0:150,last:'infra.plan · ALLOW'}],
     warrants:[
       {id:'W-4417',agent:'fin-reconcile',  scope:'payments.read · ≤ 50,000 PLN · read-only',ttl:900,ttl0:900,state:'active',sig_ok:true},
-      {id:'W-4419',agent:'support-copilot',scope:'crm.read · export=false · no PII fields', ttl:420,ttl0:420,state:'active',sig_ok:true},
+      {id:'W-4419',agent:'support-copilot',scope:'crm.read · export=false · personal fields stripped', ttl:420,ttl0:420,state:'active',sig_ok:true},
       {id:'W-4421',agent:'deploy-agent',   scope:'infra.plan · deploy ⇒ require-human',     ttl:150,ttl0:150,state:'active',sig_ok:true}],
     receipts:[]};
 }
@@ -370,6 +421,11 @@ function demoReset(){
 }
 function demoStep(){
   DEMO.step++;
+  if(DEMO.step===3){
+    dReceipt('redact','<code>crm.read</code> {fields:["subject","email","pesel"]} — 2 personal fields stripped before the call','W-4419','redacted: email, pesel · the upstream never saw them');
+    const a=S.agents.find(x=>x.id==='support-copilot'); if(a) a.last='crm.read · redacted (2 fields stripped)';
+    renderAll(); logKill('<b>REDACT</b> support-copilot · email, pesel stripped · call allowed, fields not');
+  }
   if(DEMO.step===5){
     $('modeBadge').textContent='INTERCEPT';
     dReceipt('deny','<code>crm.bulk_export</code> {fields:["email","pesel"], rows:12000} — scope violation','W-4419','DENY before execution · 0 rows left the perimeter');
@@ -445,10 +501,17 @@ if(QA){
       return {top:Math.round(r.top),bottom:Math.round(r.bottom),right:Math.round(r.right),
               ok:(r.top>=0 && r.bottom<=window.innerHeight+0.5 && r.bottom>r.top)};
     });
+    const cells=[...document.querySelectorAll('#taxoCells .cell')];
+    const inside=(box,el)=>{const a=box.getBoundingClientRect(),b=el.getBoundingClientRect();
+      return b.left>=a.left-0.5&&b.right<=a.right+0.5&&b.top>=a.top-0.5&&b.bottom<=a.bottom+0.5;};
+    const spills=[].concat(...cells.map(c=>[...c.children].filter(ch=>!inside(c,ch)))).length;
+    const clipped=[].concat(...cells.map(c=>[...c.children].filter(ch=>ch.scrollHeight>ch.clientHeight+1))).length;
+    const cellsOk = cells.length===6 && cells.every(c=>{const r=c.getBoundingClientRect();
+      return r.top>0 && r.bottom<=window.innerHeight+0.5 && r.width>80;}) && spills===0;
     const qa=document.createElement('div'); qa.id='qa-report';
     qa.dataset.tiles=JSON.stringify(tiles);
     qa.textContent='QA source='+MODE+' scrollH='+de.scrollHeight+' innerH='+window.innerHeight
-      +' tiles='+tiles.length+' allInView='+tiles.every(t=>t.ok);
+      +' tiles='+tiles.length+' cellSpills='+spills+' cellClipped='+clipped+' bodyOverflowX='+(de.scrollWidth>de.clientWidth)+' allInView='+tiles.every(t=>t.ok);
     document.body.appendChild(qa);
   },1600);
 }

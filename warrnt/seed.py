@@ -22,7 +22,7 @@ SEED_SPECS: list[WarrantSpec] = [
     ),
     WarrantSpec(
         id="W-4419", agent="support-copilot", role="Support",
-        scope="crm.read · export=false · no PII fields", ttl=420.0,
+        scope="crm.read · export=false · personal fields stripped", ttl=420.0,
         rules=[
             # A read that names a personal field is authorised but stripped: the copilot
             # still answers the ticket, the PII never reaches it (decision ``redact``).
