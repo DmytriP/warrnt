@@ -1,0 +1,75 @@
+F3 — FINAL SUBMISSION PACKAGE, 2026-10-03
+=========================================
+Task t_08b5addd · board hackyeah-milestones · milestone M5 (final hand-in)
+Status: PACKAGE COMPLETE AND VERIFIED. One human step remains: sign in to
+HackTribe and press submit (no credentials on this box; vault empty).
+
+WHAT F3 DID THIS RUN
+--------------------
+1. Fixed the one non-compliant artifact: the platform video field is capped at
+   60 s, and the F1 walkthrough is 160.1 s. Cut a 53.0 s demo from it and
+   published it as a release asset (verified live, 1 150 359 bytes).
+2. Re-verified every mandatory field against the live artifacts (below).
+3. Refreshed the pitch numbers to the FINAL clean-machine run (F2), not the
+   earlier draft run.
+4. Built a drag-and-drop bundle so the submit step is copy + upload only.
+
+VERIFIED FIELDS (copy-paste into HackTribe)
+-------------------------------------------
+Category      AI Control Layer — Agentic Trust & AI Control Layer Challenge
+Title         No warrant, no action          (4 words, limit 5) PASS
+Description   463 words                     (limit 500)         PASS
+              -> f3/submission-bundle/description-en.txt
+Presentation  upload the PDF, 5 slides, EN   (limit 10)         PASS
+              -> f3/submission-bundle/warrnt-deck.pdf
+Image gallery upload any; bundle has 7       (min 1)             PASS
+              -> f3/submission-bundle/gallery/ (slide-1..5.png,
+                 console-live.png, poster-deny.jpg, poster-revoke.jpg)
+Video URL     53 s  NEW for this run         (limit 60 s)        PASS
+              -> https://github.com/indrad3v4/warrnt/releases/download/demo-60s/warrnt-demo-55s.mp4
+Repository    public repo URL               (must be public)    PASS
+              -> https://github.com/indrad3v4/warrnt
+Instructions  f3/submission-bundle/SUBMISSION-PREFILL-en.txt (run steps)
+
+NOTE: the deck/gallery are direct uploads, not repo URLs — the repo carries no
+pitch-kit files (verified with git ls-files). Do not paste a github .pdf link.
+
+FINAL NUMBERS (from the clean-machine public-clone run, f2/f2-public.stdout)
+---------------------------------------------------------------------------
+verify_live            20/20 checks passed
+security boundaries    29/29 checks passed
+console checks         35/35 passed
+checkpoint              7/7 checkpoint checks passed
+pull-order             17/17 checks passed
+stop latency (live)    0.144 s  (revocation observed on the agent's next call)
+receipt chain          13 receipts, head 560fbce3a424aea5, recomputes from genesis
+rows past perimeter    0
+Only these. Do not print the 0.116 / 0.8 s stage variants here.
+
+LIVE VERIFICATION PERFORMED THIS RUN (raw evidence)
+---------------------------------------------------
+repo API             200   https://api.github.com/repos/indrad3v4/warrnt
+README raw           200   (14 074 bytes)
+video demo-60s       302 -> asset, follow 200, bytes 1 150 359
+deck pdf             5 pages, EN text extracted OK
+hacktribe login      200 -> https://hackyeah2026.hacktribe.co/accounts/login/
+  form fields: csrfmiddlewaretoken, login, password, remember, submit
+browser_vault_list   [] (no saved login for this origin)
+
+BLOCKER (needs a human, ~3 minutes)
+-----------------------------------
+HackTribe submission is behind a login. No account password exists on the box,
+and a password may only be entered into the page by the user (masked prompt),
+never typed by the agent. Before the 10-04 11:00 deadline, Indra must:
+  A. Sign in at https://hackyeah2026.hacktribe.co/accounts/login/
+     (or Register) — then let the agent save the login so it can fill the rest.
+  B. Provide the Discord username (required for the participation certificate;
+     final date was 2026-10-03 23:59 CEST).
+  C. Is the Goldman Sachs track handed in on HackTribe, or by e-mail to the
+     partner? The HackTribe task regulation was still unpublished
+     (rulesVisible=false); if the partner routes it by e-mail, the form above
+     is not the channel and the submit step changes.
+
+After A, the remaining work is mechanical: fill the verified fields, upload the
+bundle files, paste the video URL, press submit — then read the confirmation
+back as proof.
