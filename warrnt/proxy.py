@@ -130,6 +130,25 @@ class MCPProxy:
                 warrant.revoked_at = t0
             self._revoke_t0[agent_id] = t0
 
+    # ------------------------------------------------------------------ identity
+    def _new_agent(self, warrant: Warrant) -> AgentState:
+        """The identity a warrant creates: who acts, for whom, and on what right (ACT-2 §1/§2).
+
+        One builder for both paths - the seeded agents and the live-warrant agents a control
+        plane registers at runtime - so an agent never carries a different set of facts
+        depending on where its order came from. ``entitlements`` are the tools the order
+        covers; a granted-but-unauthorised read stays a separate question, which is why a
+        warrant is not a grant of data.
+        """
+        return AgentState(
+            id=warrant.agent, role=warrant.role, warrant=warrant.id,
+            token=self.issuer.token_for(warrant.agent, warrant.id),
+            principal=warrant.principal, on_behalf_of=warrant.on_behalf_of or warrant.principal,
+            entitlements=[r.tool for r in warrant.rules
+                          if str(getattr(r.effect, "value", r.effect)) != "deny"],
+            scope=[t.strip() for t in warrant.scope.split("·") if t.strip()],
+        )
+
     # ------------------------------------------------------------------- seed
     def issue_all(self, reset_registry: bool = True, reason: str = "",
                   actor: str = "") -> Optional[dict[str, Any]]:
@@ -143,10 +162,7 @@ class MCPProxy:
         for spec in SEED_SPECS:
             warrant = self.issuer.issue(spec)
             self.warrants[warrant.id] = warrant
-            self.agents[warrant.agent] = AgentState(
-                id=warrant.agent, role=warrant.role, warrant=warrant.id,
-                token=self.issuer.token_for(warrant.agent, warrant.id),
-            )
+            self.agents[warrant.agent] = self._new_agent(warrant)
         self.stats = {"revoked": 0, "last_stop": None, "stopped_agent": None}
         self._revoke_t0 = {}
         self.counter.clear()

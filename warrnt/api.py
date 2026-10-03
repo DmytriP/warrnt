@@ -240,7 +240,11 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
         out = []
         for a in p.agents.values():
             row = {"id": a.id, "role": a.role, "warrant": a.warrant, "state": a.state,
-                   "last": a.last}
+                   "last": a.last,
+                   # ACT-2 §1/§2: the same identity facts a control plane projects - who acts,
+                   # for whom, and which tools the order entitles it to.
+                   "principal": a.principal, "on_behalf_of": a.on_behalf_of,
+                   "entitlements": list(a.entitlements), "scope": list(a.scope)}
             if settings.dev:
                 row["token"] = a.token
             out.append(row)
@@ -318,7 +322,6 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
     @app.get("/agents")
     def agents() -> list[dict[str, Any]]:
         return agents_payload()
-
 
     # -------------------------------------------------------------- interception
     @app.post("/mcp")
