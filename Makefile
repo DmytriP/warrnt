@@ -1,4 +1,4 @@
-.PHONY: install test verify first-demo serve demo upstream-check console-check console-shot clean
+.PHONY: install test verify first-demo serve demo upstream-check console-check console-shot clean-run clean
 
 install:
 	uv pip install --python $$(command -v python3) -r requirements.txt
@@ -34,6 +34,10 @@ console-check:
 # render the live screen to PNG (Design evidence) - boots its own node, runs the vector.
 console-shot:
 	python3 scripts/console_shot.py --outdir state/shots
+
+# F2: prove it on a CLEAN MACHINE - empty temp dir, fresh clone, fresh venv, all gates.
+clean-run:
+	./scripts/f2_clean_run.sh
 
 clean:
 	rm -rf state .pytest_cache **/__pycache__

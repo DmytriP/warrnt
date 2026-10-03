@@ -6,7 +6,7 @@ has allow / deny / revoked receipts and a measured time-to-stop), then points he
 Chromium at the node's own URL and captures what it renders. It also captures the offline
 `?source=demo` copy, which is what the file:// version of the screen shows.
 
-    python3 scripts/console_shot.py --outdir /root/.hermes/hackyeah/c3
+    python3 scripts/console_shot.py --outdir state/shots
 """
 from __future__ import annotations
 

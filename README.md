@@ -62,6 +62,27 @@ One command for the whole chain (boots its own node, clean state, prints the run
 `make first-demo` (or `python3 scripts/first_demo_path.py`). It is the first demo path:
 order → policy → deny → brake → receipt → verify → anchor, asserted inline.
 
+## Verified on a clean machine (F2)
+
+Not "works on my machine". `scripts/f2_clean_run.sh` starts from an empty temp dir — a
+fresh clone of this public repository, a fresh virtualenv, deps from PyPI, no inherited
+`WARRNT_*` variable and no carried-over `state/` — and runs every command above plus the
+two-terminal demo vector, writing a verbatim transcript. It exits non-zero if any gate fails.
+
+```bash
+./scripts/f2_clean_run.sh                        # clone from GitHub into a temp dir
+REPO_URL=file://$PWD ./scripts/f2_clean_run.sh   # or clone a local copy
+PYTHON=/usr/bin/python3 ./scripts/f2_clean_run.sh  # pick the base interpreter (default: python3)
+```
+
+Transcript of the last run: `docs/f2/f2-clean-run-2026-10-03.out` — every gate green
+(50 unit + 20 live + 29 security + 17 upstream + 35 console, the first demo path, the 7/7
+checkpoint). `docs/f2/f2-provenance.out` shows *why* the run is clean: every import resolves
+inside the fresh `.venv`, none from the host, and the checkout is still pristine afterwards.
+The only step that needs anything extra is `console_shot` (a browser); with no Chromium in
+`PATH` the runner skips it and still exits 0, because the console is already covered by
+`console_check.py` over HTTP.
+
 Drive the demo vector (the 3:47 moment) against a running node:
 
 ```bash
@@ -191,7 +212,7 @@ tests/           50 tests: signing, TTL, guards, chain tamper, anchor, end-to-en
 scripts/         first_demo_path.py, verify_live.py, upstream_check.py,
                  mcp_fixture_server.py, security_boundaries.py,
                  redteam_rewrite_gap.py, console_check.py, console_shot.py,
-                 checkpoint_p23.py, demo_client.py
+                 checkpoint_p23.py, demo_client.py, f2_clean_run.sh
 docs/            architecture.md + the *.out transcripts of the last green run
 ```
 
