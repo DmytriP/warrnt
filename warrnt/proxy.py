@@ -8,6 +8,7 @@ from __future__ import annotations
 import time
 from typing import Any, Optional
 
+from .actions import apply_class, classify, listing as class_listing
 from .actors import ACTOR_SEED, ActorProfile, ActorRegistry
 from .models import AgentState, Decision, DECISION_TEXT, Warrant
 from .policy import PolicyEngine
@@ -97,14 +98,27 @@ class MCPProxy:
             decision, reason = Decision.revoked, f"agent halted · warrant {agent.warrant} pulled"
             detail = {"warrant": agent.warrant}
         else:
-            # The actor register speaks before the order is read. A class limit is not a
-            # permission question about the user: a valid warrant for the same tool still
-            # does not move it, which is the point of keeping the two gates apart.
-            class_block = self.actors.check(agent_id, tool, params)
-            if class_block is not None:
-                decision, reason, detail = class_block
+            # Three gates, in the order a person would ask them: what kind of act is this,
+            # who is standing at the gate, and what does the order allow. The class can only
+            # raise what follows it - a warrant never talks an irreversible act back down to
+            # a machine decision.
+            cls = classify(tool, params)
+            if cls is None:
+                decision, reason, detail = apply_class(Decision.allow, None, params)
             else:
-                decision, reason, detail = self.engine.evaluate(warrant, tool, params)
+                class_block = self.actors.check(agent_id, tool, params)
+                if class_block is not None:
+                    decision, reason, detail = class_block
+                    detail = {**detail, "class": cls.value}
+                    reason = f"{reason} · class {cls.value}"
+                else:
+                    decision, reason, detail = self.engine.evaluate(warrant, tool, params)
+                    decision, class_note, class_detail = apply_class(decision, cls, params)
+                    detail = {**detail, **class_detail}
+                    if class_note:
+                        reason = class_note if not reason else f"{reason} · {class_note}"
+                    else:
+                        reason = f"{reason} · class {cls.value}"
 
         agent.last = f"{tool} · {DECISION_TEXT.get(decision, decision.value)}"
         receipt = self._receipt(decision, agent_id, tool, agent.warrant, reason, params,
@@ -220,5 +234,6 @@ class MCPProxy:
             "revoked": self.stats["revoked"], "last_stop": self.stats["last_stop"],
             "agents": agents, "warrants": warrants, "receipts": receipts,
             "actors": self.actors.listing(),
+            "actions": class_listing(),
             "executor_calls": self.counter.snapshot(), "chain": self.registry.verify(),
         }

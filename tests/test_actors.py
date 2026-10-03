@@ -67,19 +67,19 @@ def test_a_demo_agent_cannot_reach_outside_its_world(client, tokens):
 
 
 def test_a_valid_warrant_does_not_widen_an_actor_class(client, tokens):
-    """fin-reconcile may transfer 42 000 within its signed order - unless its class changes.
+    """fin-reconcile may read payments within its signed order - unless its class changes.
 
     The only moving part here is the actor register: same agent, same signed warrant, same
     parameters. If the answer changes, it changed because of who is asking, not because of
     what was authorised.
     """
-    allowed = _call(client, tokens, "fin-reconcile", "payments.transfer", {"amount_pln": 42000})
+    allowed = _call(client, tokens, "fin-reconcile", "payments.read", {})
     assert allowed.json()["result"]["decision"] == "allow"
 
     proxy = client.app.state.proxy
     proxy.actors = ActorRegistry([ActorProfile(id="fin-reconcile", kind=ActorKind.chatbot,
-                                               cannot=["payments.transfer"])])
-    stopped = _call(client, tokens, "fin-reconcile", "payments.transfer", {"amount_pln": 42000})
+                                               cannot=["payments.read"])])
+    stopped = _call(client, tokens, "fin-reconcile", "payments.read", {})
     body = stopped.json()
     assert body["error"]["data"]["decision"] == "deny"
     assert body["error"]["data"]["gate"] == "actor-register"

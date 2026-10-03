@@ -38,9 +38,15 @@ def test_transfer_over_limit_is_denied_and_not_executed(client, tokens):
     assert _calls(client, "payments.transfer") == before      # nothing ran
 
 
-def test_transfer_within_limit_is_allowed(client, tokens):
+def test_transfer_within_limit_still_needs_a_person(client, tokens):
+    """Within the signed limit, and still a person's call: money is irreversible."""
+    before = _calls(client, "payments.transfer")
     reply = call(client, tokens, "fin-reconcile", "payments.transfer", {"amount_pln": 42000})
-    assert reply.json()["result"]["decision"] == "allow"
+    body = reply.json()
+    assert body["error"]["data"]["decision"] == "human"
+    assert body["error"]["data"]["class"] == "irreversible"
+    assert body["error"]["data"]["executed"] is False
+    assert _calls(client, "payments.transfer") == before      # nothing ran
 
 
 def test_pii_export_is_denied_before_execution(client, tokens):

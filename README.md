@@ -4,7 +4,7 @@ A proxy that sits in front of an MCP server and decides **before execution** whe
 agent's tool-call is allowed. Not a dashboard about agents — the thing that stops them.
 
 ```
-identity  ->  actor class  ->  order  ->  policy on parameters  ->  brake  ->  receipt
+identity  ->  actor class  ->  action class  ->  order  ->  policy on parameters  ->  brake  ->  receipt
 ```
 
 Every call carries an ephemeral identity bound to a signed *warrant* (scope + TTL +
@@ -161,11 +161,40 @@ actor-class limit · chatbot 'support-copilot' may never call infra.deploy (rule
 `tests/test_actors.py` holds the proof that matters: same agent, same signed warrant, same
 parameters — change only the actor's class and the answer flips from `allow` to `deny`.
 
-## The four bricks, and where each lives
+## The action classes — what kind of act is this, and who decides
+
+Between the register and the order sits the third question, the one that is usually left in a
+diagram and never in code: **what kind of act is this, and who is allowed to decide it.**
+
+| Class | Who decides | Examples on this node |
+|---|---|---|
+| `observe` | the node decides | `infra.plan` |
+| `read_personal` | the node decides · the fields read are on the record | `payments.read`, `crm.read` |
+| `draft` | the node decides | reserved |
+| `write_reversible` | the node decides under a signed order | `crm.update` |
+| `irreversible` | **a person decides — the machine prepares only** | `payments.transfer`, `infra.deploy` |
+| `authorize` | **the operator-human only — no machine may** | `warrant.issue`, `policy.edit` |
+
+Two rules make it enforcement rather than prose:
+
+1. **An unclassified act is refused.** The layer will not let through what it cannot name;
+   the refusal says so.
+2. **A class can only raise a decision, never lower it.** A signed order may say `allow`; if the
+   act is `irreversible`, the answer is still `human` — `REQUIRE-HUMAN`, pause, do not execute.
+   Conversely a revocation stays a revocation: fail-closed keeps the reason instead of
+   overwriting it.
+
+That is why `payments.transfer` inside its own signed limit now answers **`human`** instead of
+`allow`: money has no undo, so no signature is enough. The class rides in the receipt's reason
+(`· class irreversible · the machine prepares, a person decides`), so the classification is
+auditable per call and not only rendered in the console (`GET /state → actions`).
+
+## The five bricks, and where each lives
 
 | Brick | What it means | Where |
 |---|---|---|
 | **0. Actor register** | what this *class* of actor may never call, whatever the user's rights are | `warrnt/actors.py`, `GET /actors` |
+| **0b. Action classes** | what kind of act it is, and whether a machine may decide it at all | `warrnt/actions.py`, `GET /state → actions` |
 | **1. Order** | signed identity: scope + TTL + signature | `warrnt/warrants.py`, `GET /warrants` returns `sig_ok` |
 | **2. Pre-exec policy** | guards on the call's parameters, verified order first | `warrnt/policy.py`, seeded rules in `warrnt/seed.py` |
 | **3. Brake** | pull the warrant, halt the agent chain | `POST /revoke`, `MCPProxy.revoke` |
