@@ -197,9 +197,13 @@ def permission_checks(url: str) -> None:
                      {"amount_pln": 50000})
     edge_deny = rpc(url, "fin-reconcile", tok["fin-reconcile"], "payments.transfer",
                     {"amount_pln": 50001})
-    check("P4", "the warrant limit is exact at the boundary",
-          decision_of(edge_allow) == "allow" and decision_of(edge_deny) == "deny"
-          and code_of(edge_deny) == -32001, "50000 allow / 50001 deny")
+    # The guard is the boundary; the class is the floor. Exactly at the limit the guard
+    # holds - and the act is still irreversible, so the machine will not decide it alone:
+    # the answer is require-human (-32002), not allow. One zloty over, the guard denies.
+    check("P4", "the limit is exact: in-limit clears the guard and stops at require-human",
+          decision_of(edge_allow) == "human" and code_of(edge_allow) == -32002
+          and decision_of(edge_deny) == "deny" and code_of(edge_deny) == -32001,
+          "50000 require-human / 50001 deny")
 
     anon = rpc(url, "support-copilot", "", "crm.read", {})
     check("P5", "no token means no identity and no call", decision_of(anon) == "deny"
