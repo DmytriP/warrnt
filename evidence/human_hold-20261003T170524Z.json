@@ -1,0 +1,629 @@
+{
+  "generated_at": "20261003T170524Z",
+  "base": "http://127.0.0.1:8791",
+  "checks": [
+    {
+      "check": "allow \u00b7 scoped read runs",
+      "decision": "allow",
+      "executed": true,
+      "upstream_delta": 1,
+      "api": {
+        "action_id": "A-0001",
+        "run_id": "run-fin-1",
+        "agent": "fin-reconcile",
+        "tool": "payments.read",
+        "action_class": "read_personal",
+        "actor": "fin-reconcile (autonomous-system)",
+        "warrant": "W-4417",
+        "warrant_state": "active",
+        "parameters": {
+          "keys": [
+            "rows"
+          ],
+          "sha256": "a90432f32fbfa19673c733639116805b7824f07eb3a842cd29848f299b4ff5c5",
+          "values_withheld": true
+        },
+        "policy_result": "",
+        "decision": "allow",
+        "reason": "read-only \u00b7 in scope \u00b7 class read_personal",
+        "upstream_contacted": true,
+        "execution_result": {
+          "rows": 1240,
+          "outcome": "ok"
+        },
+        "receipt": "ccfc7953",
+        "ts": 1791047124.3720286,
+        "state": "decided",
+        "decided_by": "",
+        "decided_ts": 0.0,
+        "kept_for_hold": false
+      },
+      "state": {
+        "action_id": "A-0001",
+        "run_id": "run-fin-1",
+        "agent": "fin-reconcile",
+        "tool": "payments.read",
+        "action_class": "read_personal",
+        "actor": "fin-reconcile (autonomous-system)",
+        "warrant": "W-4417",
+        "warrant_state": "active",
+        "parameters": {
+          "keys": [
+            "rows"
+          ],
+          "sha256": "a90432f32fbfa19673c733639116805b7824f07eb3a842cd29848f299b4ff5c5",
+          "values_withheld": true
+        },
+        "policy_result": "",
+        "decision": "allow",
+        "reason": "read-only \u00b7 in scope \u00b7 class read_personal",
+        "upstream_contacted": true,
+        "execution_result": {
+          "rows": 1240,
+          "outcome": "ok"
+        },
+        "receipt": "ccfc7953",
+        "ts": 1791047124.3720286,
+        "state": "decided",
+        "decided_by": "",
+        "decided_ts": 0.0,
+        "kept_for_hold": false
+      },
+      "agree": true,
+      "receipts": 2
+    },
+    {
+      "check": "redact \u00b7 personal fields stripped before upstream",
+      "decision": "redact",
+      "executed": true,
+      "redacted": [
+        "email",
+        "pesel"
+      ],
+      "upstream_received": {
+        "rows": 3,
+        "fields": [
+          "subject"
+        ]
+      },
+      "upstream_delta": 1,
+      "api": {
+        "action_id": "A-0002",
+        "run_id": "run-support-2",
+        "agent": "support-copilot",
+        "tool": "crm.read",
+        "action_class": "read_personal",
+        "actor": "support-copilot (chatbot)",
+        "warrant": "W-4419",
+        "warrant_state": "active",
+        "parameters": {
+          "keys": [
+            "fields",
+            "rows"
+          ],
+          "sha256": "6257eb674c60e0b57387af87fb65dc1c302c24ceb93ff84cdcee146f85e0a4cd",
+          "values_withheld": true
+        },
+        "policy_result": "",
+        "decision": "redact",
+        "reason": "read-only \u00b7 in scope \u00b7 PII stripped \u00b7 personal fields stripped before execution: email, pesel \u00b7 class read_personal",
+        "upstream_contacted": true,
+        "execution_result": {
+          "rows": 3,
+          "outcome": "ok",
+          "redacted": [
+            "email",
+            "pesel"
+          ]
+        },
+        "receipt": "9a20a295",
+        "ts": 1791047124.390953,
+        "state": "decided",
+        "decided_by": "",
+        "decided_ts": 0.0,
+        "kept_for_hold": false
+      },
+      "state": {
+        "action_id": "A-0002",
+        "run_id": "run-support-2",
+        "agent": "support-copilot",
+        "tool": "crm.read",
+        "action_class": "read_personal",
+        "actor": "support-copilot (chatbot)",
+        "warrant": "W-4419",
+        "warrant_state": "active",
+        "parameters": {
+          "keys": [
+            "fields",
+            "rows"
+          ],
+          "sha256": "6257eb674c60e0b57387af87fb65dc1c302c24ceb93ff84cdcee146f85e0a4cd",
+          "values_withheld": true
+        },
+        "policy_result": "",
+        "decision": "redact",
+        "reason": "read-only \u00b7 in scope \u00b7 PII stripped \u00b7 personal fields stripped before execution: email, pesel \u00b7 class read_personal",
+        "upstream_contacted": true,
+        "execution_result": {
+          "rows": 3,
+          "outcome": "ok",
+          "redacted": [
+            "email",
+            "pesel"
+          ]
+        },
+        "receipt": "9a20a295",
+        "ts": 1791047124.390953,
+        "state": "decided",
+        "decided_by": "",
+        "decided_ts": 0.0,
+        "kept_for_hold": false
+      },
+      "agree": true,
+      "receipts": 4
+    },
+    {
+      "check": "deny \u00b7 scope violation, before upstream",
+      "decision": "deny",
+      "executed": false,
+      "upstream_delta": 0,
+      "api": {
+        "action_id": "A-0003",
+        "run_id": "run-support-3",
+        "agent": "support-copilot",
+        "tool": "crm.bulk_export",
+        "action_class": "read_personal",
+        "actor": "support-copilot (chatbot)",
+        "warrant": "W-4419",
+        "warrant_state": "active",
+        "parameters": {
+          "keys": [
+            "fields",
+            "rows"
+          ],
+          "sha256": "f7d853b131c63caebf827624258a1c47d57b715f26a62d8563a10ccdd46d958a",
+          "values_withheld": true
+        },
+        "policy_result": "",
+        "decision": "deny",
+        "reason": "export=false \u00b7 no PII fields in warrant scope \u00b7 PII fields requested: email, pesel \u00b7 class read_personal",
+        "upstream_contacted": false,
+        "execution_result": {},
+        "receipt": "ac7e7ca9",
+        "ts": 1791047124.4106224,
+        "state": "decided",
+        "decided_by": "",
+        "decided_ts": 0.0,
+        "kept_for_hold": false
+      },
+      "state": {
+        "action_id": "A-0003",
+        "run_id": "run-support-3",
+        "agent": "support-copilot",
+        "tool": "crm.bulk_export",
+        "action_class": "read_personal",
+        "actor": "support-copilot (chatbot)",
+        "warrant": "W-4419",
+        "warrant_state": "active",
+        "parameters": {
+          "keys": [
+            "fields",
+            "rows"
+          ],
+          "sha256": "f7d853b131c63caebf827624258a1c47d57b715f26a62d8563a10ccdd46d958a",
+          "values_withheld": true
+        },
+        "policy_result": "",
+        "decision": "deny",
+        "reason": "export=false \u00b7 no PII fields in warrant scope \u00b7 PII fields requested: email, pesel \u00b7 class read_personal",
+        "upstream_contacted": false,
+        "execution_result": {},
+        "receipt": "ac7e7ca9",
+        "ts": 1791047124.4106224,
+        "state": "decided",
+        "decided_by": "",
+        "decided_ts": 0.0,
+        "kept_for_hold": false
+      },
+      "agree": true,
+      "receipts": 5
+    },
+    {
+      "api": {
+        "action_id": "A-0004",
+        "run_id": "run-deploy-4",
+        "agent": "deploy-agent",
+        "tool": "infra.deploy",
+        "action_class": "irreversible",
+        "actor": "deploy-agent (autonomous-system)",
+        "warrant": "W-4421",
+        "warrant_state": "active",
+        "parameters": {
+          "keys": [
+            "target"
+          ],
+          "sha256": "9107d864ca0ed15e03df4e8836b1f6ba6b44b7ce21b147570a3a53b81ccc1451",
+          "values_withheld": true
+        },
+        "policy_result": "",
+        "decision": "human",
+        "reason": "deploy requires human authority \u00b7 class irreversible",
+        "upstream_contacted": false,
+        "execution_result": {},
+        "receipt": "89653554",
+        "ts": 1791047124.4238138,
+        "state": "pending",
+        "decided_by": "",
+        "decided_ts": 0.0,
+        "kept_for_hold": true
+      },
+      "state": {
+        "action_id": "A-0004",
+        "run_id": "run-deploy-4",
+        "agent": "deploy-agent",
+        "tool": "infra.deploy",
+        "action_class": "irreversible",
+        "actor": "deploy-agent (autonomous-system)",
+        "warrant": "W-4421",
+        "warrant_state": "active",
+        "parameters": {
+          "keys": [
+            "target"
+          ],
+          "sha256": "9107d864ca0ed15e03df4e8836b1f6ba6b44b7ce21b147570a3a53b81ccc1451",
+          "values_withheld": true
+        },
+        "policy_result": "",
+        "decision": "human",
+        "reason": "deploy requires human authority \u00b7 class irreversible",
+        "upstream_contacted": false,
+        "execution_result": {},
+        "receipt": "89653554",
+        "ts": 1791047124.4238138,
+        "state": "pending",
+        "decided_by": "",
+        "decided_ts": 0.0,
+        "kept_for_hold": true
+      },
+      "agree": true,
+      "receipts": 6,
+      "check": "human \u00b7 irreversible act is HELD (pending)",
+      "decision": "human",
+      "executed": false,
+      "upstream_delta": 0
+    },
+    {
+      "api": {
+        "action_id": "A-0004",
+        "run_id": "run-deploy-4",
+        "agent": "deploy-agent",
+        "tool": "infra.deploy",
+        "action_class": "irreversible",
+        "actor": "deploy-agent (autonomous-system)",
+        "warrant": "W-4421",
+        "warrant_state": "active",
+        "parameters": {
+          "keys": [
+            "target"
+          ],
+          "sha256": "9107d864ca0ed15e03df4e8836b1f6ba6b44b7ce21b147570a3a53b81ccc1451",
+          "values_withheld": true
+        },
+        "policy_result": "",
+        "decision": "human",
+        "reason": "deploy requires human authority \u00b7 class irreversible",
+        "upstream_contacted": true,
+        "execution_result": {
+          "rows": 1,
+          "outcome": "ok"
+        },
+        "receipt": "c050f3c0",
+        "ts": 1791047124.4238138,
+        "state": "approved",
+        "decided_by": "Indra",
+        "decided_ts": 1791047124.4408958,
+        "kept_for_hold": true
+      },
+      "state": {
+        "action_id": "A-0004",
+        "run_id": "run-deploy-4",
+        "agent": "deploy-agent",
+        "tool": "infra.deploy",
+        "action_class": "irreversible",
+        "actor": "deploy-agent (autonomous-system)",
+        "warrant": "W-4421",
+        "warrant_state": "active",
+        "parameters": {
+          "keys": [
+            "target"
+          ],
+          "sha256": "9107d864ca0ed15e03df4e8836b1f6ba6b44b7ce21b147570a3a53b81ccc1451",
+          "values_withheld": true
+        },
+        "policy_result": "",
+        "decision": "human",
+        "reason": "deploy requires human authority \u00b7 class irreversible",
+        "upstream_contacted": true,
+        "execution_result": {
+          "rows": 1,
+          "outcome": "ok"
+        },
+        "receipt": "c050f3c0",
+        "ts": 1791047124.4238138,
+        "state": "approved",
+        "decided_by": "Indra",
+        "decided_ts": 1791047124.4408958,
+        "kept_for_hold": true
+      },
+      "agree": true,
+      "receipts": 8,
+      "check": "human \u00b7 APPROVED by a named person \u2192 executed once",
+      "http_status": 200,
+      "response": {
+        "action_id": "A-0004",
+        "state": "approved",
+        "executed": true,
+        "upstream_contacted": true,
+        "rows": 1,
+        "receipt": "c050f3c0"
+      },
+      "upstream_delta": 1
+    },
+    {
+      "check": "human \u00b7 a hold is single-use (second approve refused)",
+      "second_approve": {
+        "error": "action A-0004 is approved, not pending",
+        "action_id": "A-0004"
+      }
+    },
+    {
+      "api": {
+        "action_id": "A-0005",
+        "run_id": "run-report-5",
+        "agent": "report-bot",
+        "tool": "crm.bulk_export",
+        "action_class": "read_personal",
+        "actor": "",
+        "warrant": "W-4423",
+        "warrant_state": "active",
+        "parameters": {
+          "keys": [
+            "fields",
+            "rows"
+          ],
+          "sha256": "f7d853b131c63caebf827624258a1c47d57b715f26a62d8563a10ccdd46d958a",
+          "values_withheld": true
+        },
+        "policy_result": "",
+        "decision": "human",
+        "reason": "a mass export is a person's decision, not a schedule's \u00b7 class read_personal",
+        "upstream_contacted": false,
+        "execution_result": {},
+        "receipt": "2277392f",
+        "ts": 1791047124.4557073,
+        "state": "denied",
+        "decided_by": "Indra",
+        "decided_ts": 1791047124.4627013,
+        "kept_for_hold": true
+      },
+      "state": {
+        "action_id": "A-0005",
+        "run_id": "run-report-5",
+        "agent": "report-bot",
+        "tool": "crm.bulk_export",
+        "action_class": "read_personal",
+        "actor": "",
+        "warrant": "W-4423",
+        "warrant_state": "active",
+        "parameters": {
+          "keys": [
+            "fields",
+            "rows"
+          ],
+          "sha256": "f7d853b131c63caebf827624258a1c47d57b715f26a62d8563a10ccdd46d958a",
+          "values_withheld": true
+        },
+        "policy_result": "",
+        "decision": "human",
+        "reason": "a mass export is a person's decision, not a schedule's \u00b7 class read_personal",
+        "upstream_contacted": false,
+        "execution_result": {},
+        "receipt": "2277392f",
+        "ts": 1791047124.4557073,
+        "state": "denied",
+        "decided_by": "Indra",
+        "decided_ts": 1791047124.4627013,
+        "kept_for_hold": true
+      },
+      "agree": true,
+      "receipts": 10,
+      "check": "human \u00b7 DENIED by a named person \u2192 upstream NOT contacted",
+      "http_status": 200,
+      "response": {
+        "action_id": "A-0005",
+        "state": "denied",
+        "executed": false,
+        "upstream_contacted": false,
+        "receipt": "2277392f"
+      },
+      "upstream_delta": 0
+    },
+    {
+      "check": "revoke \u00b7 further calls refused; the stale hold expires",
+      "revoke": {
+        "agent": "deploy-agent",
+        "state": "halted",
+        "warrant": "W-4421",
+        "revoked_at": 1791047124.478244
+      },
+      "next_decision": "revoked",
+      "next_executed": false,
+      "stale_hold": "expired",
+      "upstream_delta": 0,
+      "api": {
+        "action_id": "A-0007",
+        "run_id": "run-deploy-6b",
+        "agent": "deploy-agent",
+        "tool": "infra.deploy",
+        "action_class": "",
+        "actor": "deploy-agent (autonomous-system)",
+        "warrant": "W-4421",
+        "warrant_state": "revoked",
+        "parameters": {
+          "keys": [
+            "target"
+          ],
+          "sha256": "9107d864ca0ed15e03df4e8836b1f6ba6b44b7ce21b147570a3a53b81ccc1451",
+          "values_withheld": true
+        },
+        "policy_result": "",
+        "decision": "revoked",
+        "reason": "agent halted \u00b7 warrant W-4421 pulled",
+        "upstream_contacted": false,
+        "execution_result": {},
+        "receipt": "1d171ab5",
+        "ts": 1791047124.4916902,
+        "state": "decided",
+        "decided_by": "",
+        "decided_ts": 0.0,
+        "kept_for_hold": false
+      },
+      "state": {
+        "action_id": "A-0007",
+        "run_id": "run-deploy-6b",
+        "agent": "deploy-agent",
+        "tool": "infra.deploy",
+        "action_class": "",
+        "actor": "deploy-agent (autonomous-system)",
+        "warrant": "W-4421",
+        "warrant_state": "revoked",
+        "parameters": {
+          "keys": [
+            "target"
+          ],
+          "sha256": "9107d864ca0ed15e03df4e8836b1f6ba6b44b7ce21b147570a3a53b81ccc1451",
+          "values_withheld": true
+        },
+        "policy_result": "",
+        "decision": "revoked",
+        "reason": "agent halted \u00b7 warrant W-4421 pulled",
+        "upstream_contacted": false,
+        "execution_result": {},
+        "receipt": "1d171ab5",
+        "ts": 1791047124.4916902,
+        "state": "decided",
+        "decided_by": "",
+        "decided_ts": 0.0,
+        "kept_for_hold": false
+      },
+      "agree": true,
+      "receipts": 14
+    },
+    {
+      "check": "ask \u00b7 answers assembled from the record (no model in the path)",
+      "asks": [
+        {
+          "q": "What is happening?",
+          "answer": "Record: 4 agent(s), 14 receipt(s), 0 pending. Last decision: A-0007 \u2014 deploy-agent \u2192 infra.deploy 'revoked' (upstream_contacted=false, receipt #1d171ab5).",
+          "evidence": {
+            "run_id": "run-deploy-6b",
+            "action_id": "A-0007",
+            "warrant": "W-4421",
+            "decision": "revoked",
+            "upstream_contacted": false,
+            "receipt": "1d171ab5"
+          },
+          "grounded": true
+        },
+        {
+          "q": "Why was support-copilot blocked?",
+          "answer": "A-0007: deploy-agent \u2192 infra.deploy was decided 'revoked' (agent halted \u00b7 warrant W-4421 pulled). upstream_contacted=false, receipt #1d171ab5. Class unclassified, warrant W-4421 (revoked).",
+          "evidence": {
+            "run_id": "run-deploy-6b",
+            "action_id": "A-0007",
+            "warrant": "W-4421",
+            "decision": "revoked",
+            "upstream_contacted": false,
+            "receipt": "1d171ab5"
+          },
+          "grounded": true
+        },
+        {
+          "q": "Which action is waiting for me?",
+          "answer": "No action is waiting for a person: the record holds no pending action.",
+          "evidence": {
+            "run_id": null,
+            "action_id": null,
+            "warrant": null,
+            "decision": null,
+            "upstream_contacted": null,
+            "receipt": null
+          },
+          "grounded": true
+        },
+        {
+          "q": "Did it reach the CRM?",
+          "answer": "The last action (A-0007, infra.deploy) did NOT reach the upstream \u2014 decision revoked, upstream_contacted=false, receipt #1d171ab5. The most recent execution that did reach it was A-0004 (infra.deploy).",
+          "evidence": {
+            "run_id": "run-deploy-6b",
+            "action_id": "A-0007",
+            "warrant": "W-4421",
+            "decision": "revoked",
+            "upstream_contacted": false,
+            "receipt": "1d171ab5"
+          },
+          "grounded": true
+        },
+        {
+          "q": "Show me the warrant.",
+          "answer": "Warrant W-4417 for agent fin-reconcile: scope 'payments.read \u00b7 \u2264 50,000 PLN \u00b7 read-only', state active, ttl 900s, signature valid.",
+          "evidence": {
+            "run_id": null,
+            "action_id": null,
+            "warrant": "W-4417",
+            "decision": null,
+            "upstream_contacted": null,
+            "receipt": null
+          },
+          "grounded": true
+        },
+        {
+          "q": "What happens if I approve this?",
+          "answer": "Nothing is waiting for you, so there is nothing to approve. The record has no pending action.",
+          "evidence": {
+            "run_id": null,
+            "action_id": null,
+            "warrant": null,
+            "decision": null,
+            "upstream_contacted": null,
+            "receipt": null
+          },
+          "grounded": true
+        }
+      ]
+    },
+    {
+      "check": "chain \u00b7 integrity after every decision above",
+      "chain": {
+        "ok": true,
+        "length": 14,
+        "head": "68bdaded32a6b30a",
+        "history": {
+          "rotations": 0,
+          "archived_rows": 0,
+          "last_closed_head": null,
+          "archives_ok": true,
+          "problems": []
+        },
+        "anchor": {
+          "anchored": true,
+          "ok": true,
+          "signed": true,
+          "head": "68bdaded32a6b30a",
+          "length": 14,
+          "anchors": 14
+        }
+      }
+    }
+  ]
+}

@@ -142,6 +142,47 @@
   .taxo .mean{margin-top:3px;font-size:10px;line-height:1.28;color:var(--mut);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .taxo .tools{margin-top:2px;font-size:9.5px;line-height:1.3;color:var(--dim);font-family:"DejaVu Sans Mono",Menlo,Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
+
+/* ---------- 07 · human hold + Hermes control (PR-14) ---------- */
+.holdwrap{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;padding:10px 13px}
+.holds{display:flex;flex-direction:column;gap:8px;max-height:132px;overflow:auto}
+.tl{display:flex;gap:8px;overflow-x:auto;padding:9px 13px;scrollbar-width:thin}
+.ti{flex:0 0 auto;min-width:196px;max-width:236px;background:#101720;border:1px solid #1d2634;
+  border-radius:8px;padding:7px 9px;cursor:pointer}
+.ti:hover{border-color:#2f4054}
+.ti .tid{font-size:11px;color:#9fb0c4;letter-spacing:.05em}
+.ti .tw{font-size:12px;margin-top:2px}
+.ti .tm{font-size:10.5px;color:var(--dim);margin-top:3px}
+.ti .up{color:var(--deny);font-weight:600}
+.ti .no{color:var(--ok);font-weight:600}
+.hcell{background:#121821;border:1px solid #24303e;border-left:3px solid var(--hum);border-radius:8px;padding:8px 10px}
+.hcell.empty{border-left-color:var(--line);color:var(--mut);font-size:12px}
+.hid{font-size:11px;color:var(--dim);letter-spacing:.06em}
+.hwho{font-size:12.5px;margin-top:2px}
+.hwhy{font-size:12px;color:#c3cdd8;margin-top:3px}
+.hmeta{font-size:11px;color:var(--dim);margin-top:3px}
+.hact{display:flex;gap:8px;margin-top:7px}
+button.btn{border:1px solid #2b3746;background:#151d27;color:var(--ink);border-radius:7px;
+  padding:5px 9px;font-size:11.5px;font-weight:600;cursor:pointer}
+button.btn.ok{border-color:#2ea043;color:#7ee787}
+button.btn.dn{border-color:#8b3a34;color:#ff9b93}
+button.btn:disabled{opacity:.45;cursor:default}
+.ask{display:flex;flex-direction:column;gap:8px}
+.askrow{display:flex;gap:8px}
+.askin,.tokin{flex:1;background:#0c1219;border:1px solid #24303e;color:var(--ink);border-radius:7px;padding:6px 9px;font-size:12px}
+.askans{font-size:12px;color:#c9d4e0;background:#0e141c;border:1px solid #1b232e;border-radius:8px;
+  padding:8px 10px;min-height:64px;max-height:96px;overflow:auto}
+.askans .ev{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:10.5px;color:var(--dim)}
+.askans .ev b{color:#9fb0c4;font-weight:600}
+.tokrow{display:flex;gap:8px;align-items:center}
+.warn{color:var(--hum)}
+/* inspector overlay */
+#ins{position:fixed;inset:0;z-index:40;background:rgba(6,9,13,.9);display:none;padding:26px 30px}
+#ins.on{display:block}
+#ins .box{max-width:1100px;margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;max-height:82vh;overflow:auto}
+#ins h3{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#b9c5d2;margin-bottom:10px}
+#ins pre{font-size:12px;color:#cfe0f5;white-space:pre-wrap}
+#ins .close{float:right;cursor:pointer;color:var(--mut)}
 </style>
 </head>
 <body>
@@ -227,6 +268,38 @@
   <div class="k">Stopped agents <b id="kRev">0</b></div>
   <div class="k">Anchored head <b id="kAnchor">—</b></div>
   <div class="r" id="footR">HackYeah 2026 · Partner Task: AI Control Layer · one node, MCP interception</div>
+
+<!-- 07. HUMAN HOLD + HERMES CONTROL (PR-14) -->
+<section class="taxo" aria-label="Human hold and Hermes control">
+  <h2><span class="idx">07</span> Human hold <span class="c">the machine prepares · a person decides · approve runs the call once, deny never reaches the upstream</span></h2>
+  <div class="holdwrap">
+    <div class="holds" id="holdCells"><div class="hcell empty">Nothing is waiting for a person.</div></div>
+    <div class="ask">
+      <div class="askrow">
+        <input id="askQ" class="askin" placeholder="Ask the record: why was support-copilot blocked?">
+        <button id="askGo" class="btn ok">ask</button>
+      </div>
+      <div class="askans" id="askA"><span class="sub">Answers are fields of the action itself — or an admission that the field is missing.</span></div>
+      <div class="tokrow">
+        <input id="opTok" class="tokin mono" type="password" placeholder="operator token (x-warrnt-admin)" autocomplete="off">
+        <input id="opWho" class="tokin" style="max-width:130px;background:#0c1219;border:1px solid #24303e;color:var(--ink);border-radius:7px;padding:6px 9px;font-size:12px" placeholder="your name">
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- 08. TIMELINE — every action the node has decided, newest first (PR-14) -->
+<section class="taxo" aria-label="Action timeline">
+  <h2><span class="idx">08</span> Timeline <span class="c">every intercepted call, one canonical Action each · click a card for the inspector · the API is the source</span></h2>
+  <div class="tl" id="tlStrip"><div class="hcell empty">No action yet.</div></div>
+</section>
+
+<div id="ins" aria-label="Action inspector"><div class="box">
+  <span class="close" id="insX">✕ close (esc)</span>
+  <h3 id="insT">Action inspector</h3>
+  <pre id="insB">—</pre>
+</div></div>
 </footer>
 
 <script>
@@ -298,7 +371,7 @@ function renderWarrants(){
 }
 function renderReceipts(){
   $('recFeed').innerHTML = S.receipts.slice(0,60).map((r,i)=>
-    '<div class="rec'+(i===0&&r.fresh?' new':'')+'">'
+    '<div class="rec'+(i===0&&r.fresh?' new':'')+'" data-rec="'+(r.hash||'')+'" title="open the action this receipt belongs to">'
     +'<div class="ts mono">'+(r.t||'')+'</div>'
     +'<div class="body"><div class="what">'+(r.what||'')+'</div>'
     +'<div class="meta">'+(r.meta||'')+' · <span class="h">#'+(r.hash||'')+'</span></div></div>'
@@ -382,7 +455,122 @@ function renderBg(){
       +'<div class="tools">'+left+owed+sig+'</div></div>';
   }).join('');
 }
-function renderAll(){ renderAgents(); renderTaxo(); renderBg(); renderWarrants(); renderReceipts(); renderTargets(); renderKpi(); }
+function renderAll(){ renderAgents(); renderTaxo(); renderBg(); renderWarrants(); renderReceipts(); renderTargets(); renderKpi(); renderHolds(); renderTimeline(); }
+
+
+/* ---------- 07 · human hold + Hermes control (PR-14) -----------------------
+   The console is not a source of truth: every line here is a field the node returned
+   (/api/state, /api/actions/{id}) or an admission that the node is not there. Approve and
+   deny POST to the node; the node asks WARRNT; the receipt is written by the registry. */
+const CONTROL = {pending:[], counts:{}, actions:[]};
+const tok = () => { try{ return sessionStorage.getItem('warrntTok')||''; }catch(e){ return ''; } };
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+
+function renderTimeline(){
+  const el=$('tlStrip'); if(!el) return;
+  if(MODE!=='live'||!CONTROL.actions.length){
+    el.innerHTML='<div class="hcell empty">'+(MODE==='live'?'No action has reached the gate yet.':'The node is unreachable, so there is no timeline to show.')+'</div>';
+    return;
+  }
+  el.innerHTML = CONTROL.actions.slice(0,24).map(a=>
+    '<div class="ti" data-act="'+esc(a.action_id)+'" title="open the canonical Action">'
+    +'<div class="tid mono">'+esc(a.action_id)+' · '+esc(a.run_id)+'</div>'
+    +'<div class="tw">'+esc(a.agent)+' \u2192 <b>'+esc(a.tool)+'</b> '+pill(a.decision)+'</div>'
+    +'<div class="tm">'+(a.action_class||'-')+' · warrant '+esc(a.warrant)+' ('+esc(a.warrant_state)+')'
+    +' · <span class="'+(a.upstream_contacted?'up':'no')+'">upstream '+(a.upstream_contacted?'contacted':'false')+'</span>'
+    +' · #'+esc(a.receipt)+'</div></div>'
+  ).join('');
+}
+
+function renderHolds(){
+  const el=$('holdCells'); if(!el) return;
+  if(MODE!=='live'){
+    el.innerHTML='<div class="hcell empty">The node is unreachable, so there is no hold to show: a hold only exists on the node.</div>';
+    return;
+  }
+  if(!CONTROL.pending.length){
+    el.innerHTML='<div class="hcell empty">Nothing is waiting for a person: the record holds no pending action.</div>';
+    return;
+  }
+  el.innerHTML = CONTROL.pending.map(a=>
+    '<div class="hcell"><div class="hid mono">'+esc(a.action_id)+' · '+esc(a.run_id)+' · receipt #'+esc(a.receipt)+'</div>'
+    +'<div class="hwho">'+esc(a.agent)+' \u2192 <b>'+esc(a.tool)+'</b> '+pill('human')
+    +' <span class="sub">class '+esc(a.action_class||'-')+'</span></div>'
+    +'<div class="hwhy">'+esc(a.reason)+'</div>'
+    +'<div class="hmeta">warrant '+esc(a.warrant)+' ('+esc(a.warrant_state)+') · upstream_contacted=false'
+    +(a.policy_result? ' · '+esc(a.policy_result):'')+'</div>'
+    +'<div class="hact"><button class="btn ok" data-ok="'+esc(a.action_id)+'">approve → run once</button>'
+    +'<button class="btn dn" data-dn="'+esc(a.action_id)+'">deny → never reaches upstream</button></div></div>'
+  ).join('');
+}
+
+async function decide(id, verb){
+  const el=$('askA');
+  if(!tok()){ el.innerHTML='<span class="warn">Set the operator token first: a decision must carry the operator token (x-warrnt-admin).</span>'; return; }
+  try{
+    const r=await fetch('/api/actions/'+id+'/'+verb,{method:'POST',
+      headers:{'Content-Type':'application/json','x-warrnt-admin':tok()},
+      body:JSON.stringify({by: ($('opWho').value||'operator')})});
+    const d=await r.json();
+    el.innerHTML = r.ok
+      ? '<b>'+verb.toUpperCase()+'</b> · '+esc(d.action_id)+' \u2192 state <b>'+esc(d.state)+'</b> · executed '+d.executed
+        +' · upstream_contacted '+d.upstream_contacted+' · receipt #'+esc(d.receipt||'-')
+        +'<div class="ev">the same action_id now reads <b>'+esc(d.state)+'</b> in the API, the receipt and this screen</div>'
+      : '<span class="warn">refused:</span> '+esc(d.error||'error');
+  }catch(e){ el.innerHTML='<span class="warn">request failed: '+esc(e.message)+'</span>'; }
+  poll().then(setLive).catch(setDown);
+}
+
+async function askRecord(){
+  const q=($('askQ').value||'').trim(); if(!q) return;
+  const el=$('askA');
+  try{
+    const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q:q})});
+    const d=await r.json(); const e=d.evidence||{};
+    el.innerHTML = esc(d.answer)
+      +'<div class="ev">'+(d.grounded?'grounded':'NOT grounded')
+      +' · action_id <b>'+esc(e.action_id||'\u2014')+'</b> · run_id <b>'+esc(e.run_id||'\u2014')+'</b>'
+      +' · warrant <b>'+esc(e.warrant||'\u2014')+'</b> · decision <b>'+esc(e.decision||'\u2014')+'</b>'
+      +' · upstream_contacted <b>'+String(e.upstream_contacted)+'</b> · receipt <b>'+esc(e.receipt||'\u2014')+'</b></div>';
+  }catch(e){ el.innerHTML='<span class="warn">the record did not answer: '+esc(e.message)+'</span>'; }
+}
+
+function openInspector(actionId, hash, receipt){
+  $('insT').textContent = actionId? ('Action inspector · '+actionId) : ('Receipt inspector · #'+(hash||''));
+  $('insB').textContent = '…'; $('ins').classList.add('on');
+  if(actionId){
+    fetch('/api/actions/'+actionId,{cache:'no-store'}).then(r=>r.json())
+      .then(d=>{ $('insB').textContent = JSON.stringify(d,null,2); })
+      .catch(e=>{ $('insB').textContent = 'the node did not answer: '+e.message; });
+  } else if(receipt){ $('insB').textContent = JSON.stringify(receipt,null,2); }
+}
+function closeInspector(){ $('ins').classList.remove('on'); }
+
+document.addEventListener('click', ev=>{
+  const ok=ev.target.closest('[data-ok]'), dn=ev.target.closest('[data-dn]');
+  if(ok){ decide(ok.getAttribute('data-ok'),'approve'); return; }
+  if(dn){ decide(dn.getAttribute('data-dn'),'deny'); return; }
+  const rec=ev.target.closest('[data-rec]');
+  const act=ev.target.closest('[data-act]');
+  if(act){ openInspector(act.getAttribute('data-act'), null, null); return; }
+  if(rec){ const h=rec.getAttribute('data-rec');
+    const a=CONTROL.actions.find(x=>x.receipt===h);
+    if(a){ openInspector(a.action_id,h,null); } else { openInspector(null,h,S.receipts.find(x=>x.hash===h)); }
+    return; }
+  if(ev.target.id==='insX'||ev.target.id==='ins'){ closeInspector(); }
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape') closeInspector();
+  if(e.key==='Enter' && document.activeElement && document.activeElement.id==='askQ') askRecord();
+});
+if($('askGo')) $('askGo').addEventListener('click', askRecord);
+if($('opTok')){
+  $('opTok').value = tok();
+  $('opTok').addEventListener('change', ()=>{ const v=$('opTok').value.trim();
+    try{ sessionStorage.setItem('warrntTok', v); }catch(e){}
+    $('askA').innerHTML = '<span class="sub">operator token '+(v?'set for this tab':'cleared')+'.</span>'; });
+}
 
 function logKill(txt){
   const el=document.createElement('div'); el.className='row';
@@ -402,6 +590,8 @@ async function poll(){
   S.agents=d.agents||[]; S.warrants=d.warrants||[];
   S.receipts=(d.receipts||[]).map((x,i)=>Object.assign({},x,{fresh:i===0}));
   S.exec=d.executor_calls||{}; S.chain=d.chain||{}; S.breakglass=d.breakglass||{};
+  CONTROL.pending=(d.control&&d.control.pending)||[]; CONTROL.counts=(d.control&&d.control.counts)||{};
+  CONTROL.actions=d.action_log||[];
   if(d.actions&&d.actions.length) S.actions=d.actions;
   try{ const a=await fetch('/anchor',{cache:'no-store'}); if(a.ok) S.anchor=await a.json(); }catch(e){}
   renderAll();
