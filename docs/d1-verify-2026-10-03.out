@@ -1,0 +1,86 @@
+### 2026-10-03T01:50:22+02:00  D1 verification start
+### python: Python 3.12.15
+### git: bcb6d63 C3 (IN-6): the node serves its own live console
+
+===== [pytest] .venv/bin/python -m pytest -q =====
+----- exit=0  wall=1s -----
+..................................................                       [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /root/.hermes/hackyeah/warrnt/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+
+===== [verify_live] .venv/bin/python scripts/verify_live.py =====
+----- exit=0  wall=2s -----
+PASS  the running agent observes the revocation on its next call  [latency=0.141s]
+PASS  zero rows left the perimeter
+PASS  a revoked agent cannot call again
+PASS  the receipt chain recomputes from genesis  [14 receipts, head ea69117cc9d16584]
+PASS  receipts are a single unbroken chain
+PASS  the state contract is complete
+PASS  the dev probe invalidates a signed order  [mutated={'param': 'amount_pln', 'value': 50000000}]
+PASS  a tampered order is refused before execution  [executor payments.transfer 0->0]
+PASS  the refused call never reached the upstream
+PASS  the chain still verifies after a refused call
+
+20/20 checks passed
+
+===== [security] .venv/bin/python scripts/security_boundaries.py =====
+----- exit=0  wall=1s -----
+PASS  [K4] revoking again is a clean 409, not a crash  [http=409 unknown agent or already halted]
+PASS  [K5] revoking an unknown agent is rejected without side effects
+PASS  [K6] the pulled order shows state=revoked in the registry  [W-4419=revoked W-4417=active]
+PASS  [K7] a running agent observes the kill on its next call, measured live  [latency=0.026s]
+PASS  [K8] the journal survives a kill and still verifies
+PASS  [A1] the node seals a signed anchor on every decision  [37 seals, head=dadcdccf407a5fdd]
+PASS  [A2] the signed anchor matches the live registry head
+PASS  [A3] a consistent rewrite of the log is caught by the anchor  [registry head does not match the signed anchor - rewrite detected]
+PASS  [A4] the honest head still verifies against the same anchor
+PASS  [A5] an anchor edited to hide a rewrite fails its signature check  [signature invalid -> forger needs the issuer key]
+
+29/29 security-boundary checks passed
+
+===== [redteam] .venv/bin/python scripts/redteam_rewrite_gap.py =====
+----- exit=0  wall=0s -----
+live registry : 3 entries, honest verify=True
+ATTACK (bare chain) : verify=True  <- the log alone is fooled
+DEFENCE (anchor)    : {'anchored': True, 'ok': False, 'signed': True, 'reason': 'registry head does not match the signed anchor - rewrite detected', 'anchor_head': 'dadcdccf407a5fdd', 'registry_head': '6d6639d538bbfeda', 'anchor_length': 3, 'registry_length': 3}
+honest head         : {'anchored': True, 'ok': True, 'signed': True, 'head': 'dadcdccf407a5fdd', 'length': 3, 'anchors': 37}
+
+RESULT  the bare chain is fooled; the anchored node is not.
+        To hide the rewrite an attacker must also forge the anchor signature,
+        which needs the issuer key they do not hold.
+
+===== [first_demo] .venv/bin/python scripts/first_demo_path.py =====
+----- exit=0  wall=1s -----
+  receipts       : [{'t': '23:50:27', 'decision': 'revoked', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'agent halted · warrant W-4419 pulled', 'hash': '3288d6f9', 'what': '<code>crm.read</code> support-copilot → REVOKED', 'meta': 'order W-4419 · agent halted · warrant W-4419 pulled'}, {'t': '23:50:27', 'decision': 'revoked', 'agent': 'support-copilot', 'tool': '/revoke', 'warrant': 'W-4419', 'reason': 'warrant pulled by operator', 'hash': '2658fa1e', 'what': '<code>/revoke</code> support-copilot → REVOKED', 'meta': 'order W-4419 · warrant pulled by operator'}, {'t': '23:50:27', 'decision': 'deny', 'agent': 'support-copilot', 'tool': 'crm.bulk_export', 'warrant': 'W-4419', 'reason': 'export=false · no PII fields in warrant scope · PII fields requested: email, pesel', 'hash': 'c6c4a59d', 'what': '<code>crm.bulk_export</code> support-copilot → DENY before execution', 'meta': 'order W-4419 · export=false · no PII fields in warrant scope · PII fields requested: email, pesel'}, {'t': '23:50:27', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': '0414a7fb', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '23:50:27', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': '79108588', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '23:50:27', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': 'fe546804', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '23:50:27', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': '67002f01', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '23:50:27', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': '281c000f', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '23:50:27', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': '13683058', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '23:50:27', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': '782f3448', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '23:50:27', 'decision': 'allow', 'agent': 'support-copilot', 'tool': 'crm.read', 'warrant': 'W-4419', 'reason': 'read-only · in scope', 'hash': '172fb69c', 'what': '<code>crm.read</code> support-copilot → ALLOW', 'meta': 'order W-4419 · read-only · in scope'}, {'t': '23:50:27', 'decision': 'allow', 'agent': 'fin-reconcile', 'tool': 'payments.read', 'warrant': 'W-4417', 'reason': 'read-only · in scope', 'hash': 'ffd742cc', 'what': '<code>payments.read</code> fin-reconcile → ALLOW', 'meta': 'order W-4417 · read-only · in scope'}, {'t': '23:50:27', 'decision': 'allow', 'agent': 'fin-reconcile', 'tool': 'payments.read', 'warrant': 'W-4417', 'reason': 'read-only · in scope', 'hash': 'a17daf97', 'what': '<code>payments.read</code> fin-reconcile → ALLOW', 'meta': 'order W-4417 · read-only · in scope'}]
+  chain          : {'ok': True, 'length': 13, 'head': '3288d6f9cd3c616a'}
+
+====================================================================
+5. ANCHOR — the head is signed with the issuer key
+====================================================================
+  {"anchors": 14, "last": {"head": "3288d6f9cd3c616ac38b09fe647296f0c014a91c27c89a6e3df01862196d330f", "length": 13, "ts": 1790985027.7408075, "sig": "f7d0d20864a08890…"}, "verdict": {"anchored": true, "ok": true, "signed": true, "head": "3288d6f9cd3c616a", "length": 13, "anchors": 14}}
+
+====================================================================
+VERDICT
+====================================================================
+FIRST DEMO PATH: PASS — the chain ran end to end
+
+===== [console_check] .venv/bin/python scripts/console_check.py =====
+----- exit=0  wall=2s -----
+PASS  stop latency measured by the node  [last_stop=0.13460779190063477]
+PASS  head is anchored  [{"anchored": true, "ok": true, "signed": true, "head": "2e9e32cb7e09f4f3", "leng]
+PASS  kill switch: POST /revoke fin-reconcile accepted  [{"agent": "fin-reconcile", "state": "halted", "warrant": "W-4417", "revoked_at": 1790985029.062708}]
+PASS  agent is halted in the state the screen renders
+PASS  its warrant is revoked
+PASS  a 'revoked' receipt is now the head  [{"t": "23:50:29", "decision": "revoked", "agent": "fin-reconcile", "tool": "/revoke", "warrant": "W-]
+PASS  revoked counter advanced  [1 -> 2]
+PASS  halted agent leaves the target list
+PASS  revoke is idempotent (second press = 409)  [HTTP 409]
+PASS  chain survives the kill switch
+
+CONSOLE CHECK: 35/35 passed
+
+### DONE 2026-10-03T01:50:29+02:00
