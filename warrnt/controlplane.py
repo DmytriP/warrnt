@@ -163,6 +163,34 @@ def answer(question: str, actions: list[dict[str, Any]], state: dict[str, Any]) 
                 "warrant": a.get("warrant"), "decision": a.get("decision"),
                 "upstream_contacted": a.get("upstream_contacted"), "receipt": a.get("receipt")}
 
+    # A question that NAMES an action is answered about that action - not about the newest one.
+    # Without this, "Why was A-0003 denied?" is answered with whatever happened last, which is
+    # a grounded sentence about the wrong record (the one dishonesty the layer cannot afford).
+    named = re.search(r"\b([a-z]{1,3}-\d{3,})\b", q)
+    if named:
+        wanted = named.group(1).upper()
+        rows = [a for a in actions if str(a.get("action_id", "")).upper() == wanted]
+        if not rows:
+            rows = [a for a in state.get("action_log", [])
+                    if str(a.get("action_id", "")).upper() == wanted]
+        if not rows:
+            return {"answer": f"The record holds no action {wanted}: nothing with that action_id was "
+                              f"decided here, so there is nothing to report about it.",
+                    "evidence": ev, "grounded": True}
+        a = rows[0]
+        where = a.get("state") or ("pending" if a.get("decision") == "human" else "decided")
+        by = a.get("decided_by")
+        rows_out = (a.get("execution_result") or {}).get("rows")
+        text = (f"{a['action_id']}: {a['agent']} → {a['tool']} was decided '{a['decision']}' "
+                f"(class {a.get('action_class')} · warrant {a.get('warrant')} "
+                f"({a.get('warrant_state')}) · state {where}"
+                + (f" · decided by {by}" if by else "") + "). "
+                + f"upstream_contacted={str(bool(a.get('upstream_contacted'))).lower()}"
+                + (f", rows {rows_out}" if rows_out is not None else "")
+                + f", receipt #{a.get('receipt')}."
+                + (f" Reason: {a['reason']}." if a.get("reason") else ""))
+        return {"answer": text, "evidence": ev_of(a), "grounded": True}
+
     # "what happens if I approve this?"
     if "approve" in q or "if i allow" in q:
         a = pick(pending)

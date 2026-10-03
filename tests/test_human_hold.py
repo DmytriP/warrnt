@@ -215,3 +215,32 @@ def test_held_action_names_the_class_decider(client):
     assert one["state"] == "pending"
     assert one["policy_result"], "the class floor that raised this decision is on the record"
     assert "person decides" in one["policy_result"]
+
+
+# ---------------------------------------------------------------- asked-about action
+def test_a_question_naming_an_action_is_answered_about_that_action():
+    """The one dishonesty the layer cannot afford: answering about the wrong record."""
+    from warrnt.controlplane import answer
+
+    acts = [
+        {"action_id": "A-0006", "agent": "deploy-agent", "tool": "infra.deploy", "decision": "human",
+         "action_class": "irreversible", "warrant": "W-4421", "warrant_state": "active",
+         "upstream_contacted": False, "receipt": "c57beb02", "state": "pending", "run_id": "run-deploy-6"},
+        {"action_id": "A-0003", "agent": "support-copilot", "tool": "crm.bulk_export", "decision": "deny",
+         "action_class": "read_personal", "warrant": "W-4419", "warrant_state": "active",
+         "upstream_contacted": False, "receipt": "66442e31", "state": "denied", "run_id": "run-support-3",
+         "reason": "bulk export of personal fields is never allowed"},
+    ]
+    out = answer("Why was A-0003 denied?", acts, {"receipts": [], "action_log": acts})
+    assert out["evidence"]["action_id"] == "A-0003", out
+    assert "A-0003" in out["answer"] and "bulk export of personal fields" in out["answer"]
+    assert out["grounded"] is True
+
+
+def test_a_question_naming_an_unknown_action_admits_it():
+    from warrnt.controlplane import answer
+
+    out = answer("What happened to A-9999?", [], {"receipts": [], "action_log": []})
+    assert out["evidence"]["action_id"] is None
+    assert "no action A-9999" in out["answer"]
+    assert out["grounded"] is True
