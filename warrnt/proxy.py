@@ -6,6 +6,7 @@ translate a request into a call here and serialise the answer.
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from typing import Any, Optional
 
 from . import gates as gate_registry
@@ -20,6 +21,8 @@ from .models import AgentState, Decision, DECISION_TEXT, Warrant
 from .policy import PolicyEngine, strip_pii
 from .registry import AppendOnlyRegistry
 from .seed import SEED_SPECS
+from .semantic import SemanticJudge
+from .signatures import SignatureFeed
 from .upstream import ExecutionCounter, build_upstream
 from .warrants import WarrantIssuer, refresh_state, remaining
 
@@ -45,7 +48,7 @@ class MCPProxy:
     def __init__(self, issuer: WarrantIssuer, registry: AppendOnlyRegistry,
                  engine: Optional[PolicyEngine] = None, upstream=None,
                  now=None, actors: Optional[list[ActorProfile]] = None,
-                 catalog=None, budget=None):
+                 catalog=None, budget=None, semantic=None):
         self.issuer = issuer
         self.registry = registry
         self.engine = engine or PolicyEngine()
@@ -65,6 +68,14 @@ class MCPProxy:
         # them to the gates; it reads no setting and makes no decision of its own.
         self.catalog = catalog if catalog is not None else Catalog.load()
         self.budget = budget if budget is not None else BudgetLedger(self.catalog, now=self._now)
+        # The attack-signature feed (D8): outside the codebase, owned by operations, re-read the
+        # same way the catalog is. A feed that cannot be read is carried as an error rather than
+        # raised here - the gate that uses it decides what an unreadable feed means.
+        self.signatures = SignatureFeed.load(self._feed_path())
+        # The semantic judge (4.2). Built from the catalog's own block: model, endpoint, timeout.
+        # It is constructed even when the control is off - constructing it costs nothing, and the
+        # gate is what decides whether to ask. Nothing here reaches the network.
+        self.semantic = semantic if semantic is not None else SemanticJudge(**self._semantic_args())
         # Break-glass: the one thing that can lower a *policy* pause, and only that. It is
         # signed with the same key as an order, it is single-use, and it owes a review.
         self.breakglass = BreakGlassRegistry(sign=self.issuer.sign, now=self._now,
@@ -104,6 +115,23 @@ class MCPProxy:
         self.breakglass._seq = 0
         return rotation
 
+    def _feed_path(self) -> str:
+        """The feed lives beside the catalog that names it, unless it is an absolute path."""
+        named = str(getattr(self.catalog, "signatures_path", "") or "").strip()
+        if not named:
+            return ""
+        path = Path(named)
+        catalog_path = getattr(self.catalog, "path", None)
+        if not path.is_absolute() and catalog_path is not None:
+            return str(Path(catalog_path).parent / path)
+        return str(path)
+
+    def _semantic_args(self) -> dict:
+        """Only the keys the judge knows; the catalog may carry more than the judge needs."""
+        block = dict(getattr(self.catalog, "semantic", None) or {})
+        allowed = {"model", "endpoint", "timeout_ms"}
+        return {k: v for k, v in block.items() if k in allowed}
+
     # -------------------------------------------------------------- interception
     def intercept(self, agent_id: str, token: str, tool: str,
                   params: dict[str, Any] | None,
@@ -136,10 +164,14 @@ class MCPProxy:
             # D9: the catalog is re-read when its mtime moves, so an operator's edit is obeyed
             # by the NEXT call. A parse happens only when the file actually changed.
             self.catalog.reload()
+            # The feed follows the same discipline: re-read when its file moves, so a shape
+            # published five minutes ago is already in force on the next call (D9).
+            self.signatures.reload()
             ctx = GateContext(agent_id=agent_id, agent=agent, warrant=warrant, tool=tool,
                               params=params or {}, actors=self.actors, engine=self.engine,
                               breakglass=self.breakglass, catalog=self.catalog,
-                              budget=self.budget)
+                              budget=self.budget, signatures=self.signatures,
+                              semantic=self.semantic)
             decision, reason, detail = gate_registry.run(ctx)
             # A control in `monitor` strictness refuses nothing, but its shadow verdict belongs
             # on the record - otherwise "monitoring" and "not installed" look identical.

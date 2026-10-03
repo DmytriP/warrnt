@@ -134,8 +134,12 @@ class Catalog:
 
         data = _read(self.path)
         controls: dict[str, Control] = {}
-        for name in KNOWN_CONTROLS:                       # defaults first
-            controls[name] = Control(name=name)
+        for name in KNOWN_CONTROLS:
+            # A known control the file does not mention is OFF, not armed. Pre-seeding these as
+            # enabled/block is what made a one-line catalog arm every other control - including
+            # the semantic judge, which then refused every call because no model was installed.
+            # A config file means what it says; the shipped catalogs state every control.
+            controls[name] = Control(name=name, enabled=False, strictness="off")
         for name, spec in (data.get("controls") or {}).items():
             spec = spec or {}
             if not isinstance(spec, dict):
@@ -159,7 +163,14 @@ class Catalog:
 
     # ------------------------------------------------------------------ reading
     def control(self, name: str) -> Control:
-        return self.controls.get(name) or Control(name=name)
+        """A control this file does not mention is not consulted.
+
+        The alternative - defaulting an absent control to armed - reads as fail-closed but
+        behaves as fail-closed to nothing: a catalog that lists one control would silently arm
+        every other one, including any that needs a dependency the operator never installed. A
+        config file means what it says; the shipped catalogs state every control.
+        """
+        return self.controls.get(name) or Control(name=name, enabled=False, strictness="off")
 
     def strictness(self, name: str) -> str:
         return self.control(name).strictness

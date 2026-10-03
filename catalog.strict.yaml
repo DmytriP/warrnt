@@ -12,6 +12,10 @@ controls:
   budget:            {enabled: true, strictness: block}   # spend, checked before the order
   actor_scope:       {enabled: true, strictness: block}   # what this kind of actor may never call
   order_policy:      {enabled: true, strictness: block}   # what the signed order allows
+  # break_glass has no gate to switch off: the pause a named person opens is part of
+  # the kernel (it can only ever *raise* a decision), so it is listed here to be seen,
+  # not to be tuned. Listed with the rest so the catalog names every control.
+  break_glass:       {enabled: true, strictness: block}
 
   pattern_inspector: {enabled: true, strictness: block,  threshold: 0.2}
   signature_feed:    {enabled: true, strictness: block}

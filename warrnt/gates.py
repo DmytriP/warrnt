@@ -40,6 +40,8 @@ class GateContext:
     breakglass: Any = None      # BreakGlassRegistry - injected by the kernel
     catalog: Any = None         # Catalog - the one control source (D3), injected by the kernel
     budget: Any = None          # BudgetLedger - spend ceilings (D7), injected by the kernel
+    signatures: Any = None      # SignatureFeed - the attack feed (D8), injected by the kernel
+    semantic: Any = None        # SemanticJudge - the local model (4.2), injected by the kernel
     cls: Any = None             # filled by the act_class gate, read by the ones after it
     extra: dict[str, Any] = field(default_factory=dict)
 

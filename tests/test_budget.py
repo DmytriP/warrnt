@@ -12,11 +12,18 @@ from warrnt.catalog import Catalog
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# Local on purpose: importing tests.conftest resolves to whatever `tests` package is on
+# sys.path first, which is not necessarily this repository's.
+ADMIN_TOKEN = "operator-token"
+
 
 def catalog_with(tmp_path, budgets):
     path = tmp_path / "catalog.yaml"
     import yaml
-    path.write_text(yaml.safe_dump({"version": 1, "budgets": budgets}), encoding="utf-8")
+    path.write_text(yaml.safe_dump({"version": 1,
+                                    "controls": {"budget": {"enabled": True,
+                                                            "strictness": "block"}},
+                                    "budgets": budgets}), encoding="utf-8")
     return Catalog.load(path)
 
 
@@ -103,17 +110,19 @@ def test_the_snapshot_is_the_management_view(tmp_path):
 def _app_with_catalog(tmp_path, monkeypatch, budgets):
     import yaml
     from warrnt.api import create_app
-    from tests.conftest import TEST_ADMIN
     from warrnt.config import Settings
 
     path = tmp_path / "catalog.yaml"
-    path.write_text(yaml.safe_dump({"version": 1, "budgets": budgets}), encoding="utf-8")
+    path.write_text(yaml.safe_dump({"version": 1,
+                                    "controls": {"budget": {"enabled": True,
+                                                            "strictness": "block"}},
+                                    "budgets": budgets}), encoding="utf-8")
     monkeypatch.setenv("WARRNT_CATALOG", str(path))
     settings = Settings(home=tmp_path, registry_path=tmp_path / "receipts.jsonl",
                         key_path=tmp_path / "issuer.key", anchor_path=tmp_path / "anchors.jsonl",
                         upstream_url="", host="127.0.0.1", port=0, dev=True,
-                        admin_token=TEST_ADMIN)
-    return create_app(settings=settings), TEST_ADMIN
+                        admin_token=ADMIN_TOKEN)
+    return create_app(settings=settings), ADMIN_TOKEN
 
 
 def test_a_call_over_budget_is_refused_before_the_upstream(tmp_path, monkeypatch):
@@ -146,7 +155,6 @@ def test_monitor_strictness_records_a_shadow_verdict_and_refuses_nothing(tmp_pat
     from fastapi.testclient import TestClient
     from warrnt.config import Settings
     from warrnt.api import create_app
-    from tests.conftest import TEST_ADMIN
 
     path = tmp_path / "catalog.yaml"
     path.write_text(yaml.safe_dump({
@@ -157,9 +165,9 @@ def test_monitor_strictness_records_a_shadow_verdict_and_refuses_nothing(tmp_pat
     monkeypatch.setenv("WARRNT_CATALOG", str(path))
     settings = Settings(home=tmp_path, registry_path=tmp_path / "receipts.jsonl",
                         key_path=tmp_path / "issuer.key", anchor_path=tmp_path / "anchors.jsonl",
-                        upstream_url="", host="127.0.0.1", port=0, dev=True, admin_token=TEST_ADMIN)
+                        upstream_url="", host="127.0.0.1", port=0, dev=True, admin_token=ADMIN_TOKEN)
     app = create_app(settings=settings)
-    with TestClient(app, headers={"X-WARRNT-Admin": TEST_ADMIN}) as c:
+    with TestClient(app, headers={"X-WARRNT-Admin": ADMIN_TOKEN}) as c:
         tokens = {a["id"]: a["token"] for a in c.get("/agents").json()}
         body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
                 "params": {"name": "crm.read", "arguments": {"table": "tickets", "limit": 1}}}
