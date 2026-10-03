@@ -8,7 +8,9 @@ from __future__ import annotations
 import time
 from typing import Any, Optional
 
-from .actions import apply_class, classify, listing as class_listing
+from . import gates as gate_registry
+from .gates import GateContext
+from .actions import listing as class_listing
 from .actors import ACTOR_SEED, ActorProfile, ActorRegistry
 from .models import AgentState, Decision, DECISION_TEXT, Warrant
 from .policy import PolicyEngine, strip_pii
@@ -47,6 +49,9 @@ class MCPProxy:
         self.actors = ActorRegistry(actors if actors is not None else list(ACTOR_SEED))
         self.counter = ExecutionCounter()
         self.upstream = upstream or build_upstream(self.counter)
+        # The kernel loads its gates from the plugin package and never names one itself:
+        # adding a gate is adding a file under warrnt/plugins/, not editing this module.
+        gate_registry.load()
         self._now = now or time.time
         self.agents: dict[str, AgentState] = {}
         self.warrants: dict[str, Warrant] = {}
@@ -98,27 +103,13 @@ class MCPProxy:
             decision, reason = Decision.revoked, f"agent halted · warrant {agent.warrant} pulled"
             detail = {"warrant": agent.warrant}
         else:
-            # Three gates, in the order a person would ask them: what kind of act is this,
-            # who is standing at the gate, and what does the order allow. The class can only
-            # raise what follows it - a warrant never talks an irreversible act back down to
-            # a machine decision.
-            cls = classify(tool, params)
-            if cls is None:
-                decision, reason, detail = apply_class(Decision.allow, None, params)
-            else:
-                class_block = self.actors.check(agent_id, tool, params)
-                if class_block is not None:
-                    decision, reason, detail = class_block
-                    detail = {**detail, "class": cls.value}
-                    reason = f"{reason} · class {cls.value}"
-                else:
-                    decision, reason, detail = self.engine.evaluate(warrant, tool, params)
-                    decision, class_note, class_detail = apply_class(decision, cls, params)
-                    detail = {**detail, **class_detail}
-                    if class_note:
-                        reason = class_note if not reason else f"{reason} · {class_note}"
-                    else:
-                        reason = f"{reason} · class {cls.value}"
+            # The chains live in the registry, not here: the kernel only asks. The gates
+            # read in the order a person would ask them - what kind of act is this
+            # (act_class), who is standing at the gate (actor_scope), what does the order
+            # allow (order_policy) - and a class can only raise what follows it.
+            ctx = GateContext(agent_id=agent_id, agent=agent, warrant=warrant, tool=tool,
+                              params=params or {}, actors=self.actors, engine=self.engine)
+            decision, reason, detail = gate_registry.run(ctx)
 
         agent.last = f"{tool} · {DECISION_TEXT.get(decision, decision.value)}"
         receipt = self._receipt(decision, agent_id, tool, agent.warrant, reason, params,
