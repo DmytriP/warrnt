@@ -31,6 +31,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+os.environ.setdefault("WARRNT_ADMIN_TOKEN", "operator-token")
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -68,7 +69,8 @@ def get_json(url: str, path: str) -> dict:
 
 def post_json(url: str, path: str, body: dict) -> tuple[int, dict]:
     req = urllib.request.Request(url.rstrip("/") + path, data=json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json"})
+                                 headers={"Content-Type": "application/json",
+                      "X-WARRNT-Admin": os.environ.get("WARRNT_ADMIN_TOKEN", "")})
     try:
         with urllib.request.urlopen(req, timeout=5) as r:
             return r.status, json.loads(r.read().decode())

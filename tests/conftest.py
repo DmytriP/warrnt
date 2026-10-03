@@ -11,6 +11,8 @@ from fastapi.testclient import TestClient
 from warrnt.api import create_app
 from warrnt.config import Settings
 
+TEST_ADMIN = "test-admin-token"
+
 
 @pytest.fixture
 def settings(tmp_path):
@@ -23,6 +25,7 @@ def settings(tmp_path):
         host="127.0.0.1",
         port=0,
         dev=True,
+        admin_token=TEST_ADMIN,
     )
 
 
@@ -33,7 +36,8 @@ def app(settings):
 
 @pytest.fixture
 def client(app):
-    with TestClient(app) as c:
+    # Mutating routes require the operator token; the token here is the test's own.
+    with TestClient(app, headers={"X-WARRNT-Admin": TEST_ADMIN}) as c:
         yield c
 
 

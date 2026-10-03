@@ -7,7 +7,7 @@
     GET  /receipts  the full append-only registry
     GET  /verify    recompute the hash chain from genesis
     GET  /health    liveness + chain head
-    POST /reset     re-issue the seed warrants and clear counters
+    POST /reset     rotate the receipt chain and re-issue the seed warrants (operator token)
     POST /api/breakglass            a named person opens a policy pause for ≤15 min
     GET  /api/breakglass            every grant, its state, its window and its debt
     POST /api/breakglass/revoke     close a grant early
@@ -16,10 +16,17 @@
 The proxy is built once in ``create_app`` and stored on ``app.state.proxy``; routes are
 thin translators. A denied call returns a JSON-RPC ``error`` and the upstream is not
 touched.
+
+Mutating routes (``/reset``, ``/revoke``, ``/api/breakglass*``, ``/_dev/*``) require the
+operator token in ``x-warrnt-admin``: an anonymous control plane is a control plane anyone
+can drive (finding V1). Set ``WARRNT_ADMIN_TOKEN``; when it is unset the node generates one
+and prints it once at startup.
 """
 from __future__ import annotations
 
+import hmac
 import os
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
@@ -75,6 +82,11 @@ class BreakGlassPostmortem(BaseModel):
     note: str
 
 
+class ResetRequest(BaseModel):
+    reason: str = ""
+    actor: str = ""
+
+
 def build_proxy(settings: Settings) -> MCPProxy:
     issuer = WarrantIssuer.from_env_or_file(str(settings.key_path))
     registry = AppendOnlyRegistry(str(settings.registry_path))
@@ -92,7 +104,11 @@ def build_proxy(settings: Settings) -> MCPProxy:
     def _seal_append(rec: dict) -> None:
         anchor.seal(rec["hash"], len(registry.entries))
 
-    def _seal_reset() -> None:
+    def _seal_reset(rotation: Optional[dict[str, Any]] = None) -> None:
+        # Seal the closed segment first, so the anchor log itself carries the rotation point
+        # (head + row count), then seal the fresh empty chain.
+        if rotation:
+            anchor.seal(rotation["closed_head"], rotation["closed_length"])
         anchor.seal(registry.GENESIS, 0)
 
     registry.on_append = _seal_append
@@ -112,6 +128,20 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
     app = FastAPI(title="WARRNT node", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.proxy = build_proxy(settings)
+
+    admin_token = settings.admin_token or secrets.token_urlsafe(24)
+    app.state.admin_token = admin_token
+    if not settings.admin_token:
+        print("[warrnt] WARRNT_ADMIN_TOKEN is unset - generated for this process only:\n"
+              f"[warrnt]   {admin_token}\n"
+              "[warrnt] mutating routes need the header x-warrnt-admin: <token>", flush=True)
+
+    def require_admin(supplied: str) -> Optional[JSONResponse]:
+        """401 unless the caller holds the operator token."""
+        if not admin_token or not supplied or not hmac.compare_digest(supplied, admin_token):
+            return JSONResponse({"error": "operator token required",
+                                 "hint": "send the x-warrnt-admin header"}, status_code=401)
+        return None
 
     def proxy() -> MCPProxy:
         return app.state.proxy
@@ -158,11 +188,18 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
         """The last head the issuer signed, and whether the live registry still matches it."""
         p = proxy()
         last = p.anchor.last
+        hist = p.registry.history()
+        verdict = p.anchor.verify(p.registry.head, len(p.registry.entries))
+        # The anchor speaks for the live head. If a rotated segment is gone or edited, the
+        # anchor must not be the one place that still says "fine" (finding V2).
+        verdict = {**verdict, "history_ok": hist["archives_ok"],
+                   "ok": bool(verdict.get("ok")) and hist["archives_ok"]}
         return {
             "anchors": len(p.anchor.records),
             "last": ({"head": last["head"], "length": last["length"], "ts": last["ts"],
                       "sig": last["sig"][:16] + "…"} if last else None),
-            "verdict": p.anchor.verify(p.registry.head, len(p.registry.entries)),
+            "verdict": verdict,
+            "history": hist,
         }
 
     @app.get("/receipts")
@@ -238,7 +275,10 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
 
     # --------------------------------------------------------------------- brake
     @app.post("/revoke")
-    def revoke(body: RevokeRequest) -> JSONResponse:
+    def revoke(body: RevokeRequest, x_warrnt_admin: str = Header(default="")) -> JSONResponse:
+        denied = require_admin(x_warrnt_admin)
+        if denied is not None:
+            return denied
         p = proxy()
         agent_id = body.agent
         if agent_id is None and body.warrant:
@@ -256,13 +296,17 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
 
     # ------------------------------------------------------------ break-glass
     @app.post("/api/breakglass")
-    def breakglass_grant(body: BreakGlassRequest) -> JSONResponse:
+    def breakglass_grant(body: BreakGlassRequest,
+                         x_warrnt_admin: str = Header(default="")) -> JSONResponse:
         """A named person opens one policy pause, for one agent and one tool, briefly.
 
         The node checks the class first: what the taxonomy calls a person's act
         (``irreversible``, ``authorize``) is refused here with that sentence, and never
         reaches the grant. What is left is the ``human`` a *rule* asked for.
         """
+        denied = require_admin(x_warrnt_admin)
+        if denied is not None:
+            return denied
         p = proxy()
         if body.agent not in p.agents:
             return JSONResponse({"error": f"unknown agent {body.agent!r}"}, status_code=404)
@@ -288,14 +332,22 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
         return proxy().breakglass.snapshot()
 
     @app.post("/api/breakglass/revoke")
-    def breakglass_revoke(body: BreakGlassId) -> JSONResponse:
+    def breakglass_revoke(body: BreakGlassId,
+                          x_warrnt_admin: str = Header(default="")) -> JSONResponse:
+        denied = require_admin(x_warrnt_admin)
+        if denied is not None:
+            return denied
         grant = proxy().breakglass.revoke(body.id)
         if grant is None:
             return JSONResponse({"error": f"grant {body.id} is not open"}, status_code=409)
         return JSONResponse({"id": grant.id, "state": grant.state})
 
     @app.post("/api/breakglass/postmortem")
-    def breakglass_postmortem(body: BreakGlassPostmortem) -> JSONResponse:
+    def breakglass_postmortem(body: BreakGlassPostmortem,
+                              x_warrnt_admin: str = Header(default="")) -> JSONResponse:
+        denied = require_admin(x_warrnt_admin)
+        if denied is not None:
+            return denied
         try:
             grant = proxy().breakglass.postmortem(body.id, body.note)
         except BreakGlassRefused as exc:
@@ -305,15 +357,31 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
 
     # ------------------------------------------------------------------- reset
     @app.post("/reset")
-    def reset() -> dict[str, Any]:
-        proxy().issue_all(reset_registry=True)
-        return {"ok": True, "state": proxy().state()}
+    def reset(body: Optional[ResetRequest] = None,
+              x_warrnt_admin: str = Header(default="")) -> JSONResponse:
+        """Rotate the chain (archive it, record the rotation) and re-issue the orders.
+
+        A reset is a maintainer action with a name on it, not an anonymous eraser: it needs
+        the operator token, and the closed chain survives in the archive (finding V2).
+        """
+        denied = require_admin(x_warrnt_admin)
+        if denied is not None:
+            return denied
+        body = body or ResetRequest()
+        rotation = proxy().issue_all(reset_registry=True,
+                                     reason=body.reason or "manual reset",
+                                     actor=body.actor or "operator")
+        return JSONResponse({"ok": True, "rotated": rotation, "state": proxy().state()})
 
     # --------------------------------------------------------- dev probe (signature)
     @app.post("/_dev/tamper")
-    def dev_tamper(body: TamperRequest) -> JSONResponse:
+    def dev_tamper(body: TamperRequest,
+                   x_warrnt_admin: str = Header(default="")) -> JSONResponse:
         """Dev-only: widen a signed order *after* issuance, to prove the gate trusts the
         signature and not the object in memory. Disabled unless WARRNT_DEV=1."""
+        denied = require_admin(x_warrnt_admin)
+        if denied is not None:
+            return denied
         if not settings.dev:
             return JSONResponse({"error": "tamper probe is dev-only (set WARRNT_DEV=1)"},
                                 status_code=403)

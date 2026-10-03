@@ -19,6 +19,7 @@ import time
 import urllib.request
 from pathlib import Path
 
+os.environ.setdefault("WARRNT_ADMIN_TOKEN", "operator-token")
 ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(os.environ.get("F1_OUT", ROOT / "docs" / "f1"))
 CHROMIUM = shutil.which("chromium") or "/usr/lib/chromium/chromium"

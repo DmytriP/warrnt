@@ -4,6 +4,8 @@ WARRNT_HOME         state directory (default: ``./state`` under the repo root)
 WARRNT_ISSUER_KEY   signing key (default: generated at <home>/issuer.key)
 WARRNT_UPSTREAM     real MCP endpoint to front; unset -> in-process sandbox
 WARRNT_HOST/PORT    bind address for ``warrnt serve``
+WARRNT_ADMIN_TOKEN  operator token for mutating routes (unset -> one is generated and
+                    printed once at startup; mutating routes answer 401 without it)
 """
 from __future__ import annotations
 
@@ -24,6 +26,7 @@ class Settings:
     host: str
     port: int
     dev: bool
+    admin_token: str
 
     @classmethod
     def load(cls, home: str | os.PathLike | None = None) -> "Settings":
@@ -38,4 +41,5 @@ class Settings:
             host=os.environ.get("WARRNT_HOST", "0.0.0.0"),
             port=int(os.environ.get("WARRNT_PORT", "8099")),
             dev=os.environ.get("WARRNT_DEV", "").strip() in ("1", "true", "yes"),
+            admin_token=os.environ.get("WARRNT_ADMIN_TOKEN", "").strip(),
         )

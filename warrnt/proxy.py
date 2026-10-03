@@ -68,11 +68,15 @@ class MCPProxy:
         self._revoke_t0: dict[str, float] = {}
 
     # ------------------------------------------------------------------- seed
-    def issue_all(self, reset_registry: bool = True) -> None:
+    def issue_all(self, reset_registry: bool = True, reason: str = "",
+                  actor: str = "") -> Optional[dict[str, Any]]:
         self.agents.clear()
         self.warrants.clear()
+        rotation: Optional[dict[str, Any]] = None
         if reset_registry:
-            self.registry.reset()
+            # A reset rotates the chain instead of erasing it: the closed segment is
+            # archived and the rotation is recorded (finding V2).
+            rotation = self.registry.reset(reason=reason, actor=actor)
         for spec in SEED_SPECS:
             warrant = self.issuer.issue(spec)
             self.warrants[warrant.id] = warrant
@@ -86,6 +90,7 @@ class MCPProxy:
         # A reset re-issues the orders; an open bypass must not survive it.
         self.breakglass.grants.clear()
         self.breakglass._seq = 0
+        return rotation
 
     # -------------------------------------------------------------- interception
     def intercept(self, agent_id: str, token: str, tool: str,
@@ -120,9 +125,14 @@ class MCPProxy:
                               breakglass=self.breakglass)
             decision, reason, detail = gate_registry.run(ctx)
             if detail.get("break_glass"):
-                # A grant is single-use: the call it lifted has just spent it. The receipt
-                # below carries the grant id, so the chain shows who opened the door and when.
-                self.breakglass.consume(detail["break_glass"], tool)
+                # A grant is single-use, and the spending is what makes it so: the claim is
+                # atomic, so when two calls race for one grant exactly one of them proceeds
+                # and the other is refused (finding V5). Either way the receipt carries the
+                # grant id, so the chain shows who opened the door and when.
+                if self.breakglass.claim(detail["break_glass"], tool) is None:
+                    decision, reason = Decision.deny, "break-glass grant already spent · single use"
+                    detail = {**detail, "grant_spent": detail.get("break_glass", ""),
+                              "break_glass": "", "break_glass_by": ""}
 
         agent.last = f"{tool} · {DECISION_TEXT.get(decision, decision.value)}"
         receipt = self._receipt(decision, agent_id, tool, agent.warrant, reason, params,
@@ -146,15 +156,28 @@ class MCPProxy:
             exec_params, removed = strip_pii(params, detail.get("redacted") or [])
             detail = {**detail, "redacted": removed, "upstream_params": exec_params}
 
-        result = self.upstream.call(tool, exec_params)   # executed ONLY here
+        # The upstream is invoked here and nowhere else. If it fails after being invoked, the
+        # attempt is still a thing that happened to the outside world, so it is recorded as a
+        # receipt of its own - a chain that only records successes would go quiet exactly when
+        # the story gets interesting (finding V6).
+        outcome, rows = "ok", 0
+        try:
+            result = self.upstream.call(tool, exec_params)   # executed ONLY here
+            rows = int(result.get("rows", 0))
+        except Exception as exc:                             # noqa: BLE001 - the record survives it
+            result, outcome = None, "error"
+            detail = {**detail, "upstream_error": f"{type(exc).__name__}: {exc}"[:200]}
         receipt2 = self.registry.append(
             t=_clock(), decision=decision.value, agent=agent_id, tool=tool,
             warrant=agent.warrant,
-            reason=reason, params="", rows_after=result["rows"], ts=self._now(),
-            exec_hash=receipt["hash"],
+            reason=reason, params="", rows_after=rows, ts=self._now(),
+            exec_hash=receipt["hash"], outcome=outcome,
         )
+        if result is None:
+            return (decision, reason,
+                    {**detail, "receipt": receipt2["hash"][:8], "rows_after": 0}, receipt2, True)
         return (decision, reason,
-                {**detail, "receipt": receipt2["hash"][:8], "rows_after": result["rows"],
+                {**detail, "receipt": receipt2["hash"][:8], "rows_after": rows,
                  "result": result}, receipt2, True)
 
     # ------------------------------------------------------------------- brake
@@ -214,12 +237,19 @@ class MCPProxy:
     def _receipt(self, decision: Decision, agent: str, tool: str, warrant: str,
                  reason: str, params: dict[str, Any] | None,
                  detail: dict[str, Any] | None = None) -> dict:
-        import json
+        import hashlib, json
 
+        # The chain records WHICH request this was, never its values: a receipt that
+        # carried the payload would make the control layer the largest PII store in the
+        # building (finding V3). Keys and a digest are enough to tie the decision to the
+        # request in the source system.
+        raw = json.dumps(params or {}, sort_keys=True, ensure_ascii=False)
         return self.registry.append(
             t=_clock(), decision=decision.value, agent=agent, tool=tool, warrant=warrant,
             reason=reason,
-            params=json.dumps(params or {}, sort_keys=True, ensure_ascii=False)[:400],
+            param_keys=",".join(sorted((params or {}).keys()))[:200],
+            params_sha256=hashlib.sha256(raw.encode()).hexdigest(),
+            params="",
             rows_after=0, ts=self._now(),
         )
 

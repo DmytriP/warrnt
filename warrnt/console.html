@@ -477,13 +477,26 @@ function demoStep(){
 function startDemo(){ demoReset(); clearInterval(DEMO.timer); DEMO.timer=setInterval(demoStep,1000); }
 
 /* ---------- kill switch: real POST when live ---------- */
+/* The node's mutating routes are guarded by the operator token: the screen asks for it once
+   and keeps it in this browser (finding V1). Without it the node answers 401 - visibly. */
+function adminToken(){ try{ return localStorage.getItem('warrnt_admin')||''; }catch(e){ return ''; } }
+function askAdminToken(){
+  const t=window.prompt('Operator token (WARRNT_ADMIN_TOKEN of the running node):', adminToken()||'');
+  if(t===null) return false;
+  try{ localStorage.setItem('warrnt_admin', t.trim()); }catch(e){}
+  return Boolean(t.trim());
+}
 async function doRevoke(agent){
   if(MODE==='live'){
     $('revoke').disabled=true;
     try{
-      const r=await fetch('/revoke',{method:'POST',headers:{'Content-Type':'application/json'},
+      const r=await fetch('/revoke',{method:'POST',headers:{'Content-Type':'application/json',
+                                    'X-WARRNT-Admin':adminToken()},
                                     body:JSON.stringify({agent})});
       const d=await r.json().catch(()=>({}));
+      if(r.status===401){ $('revoke').disabled=false;
+        logKill('<b>REVOKE</b> '+agent+' → 401 · the node wants the operator token');
+        if(askAdminToken()) return doRevoke(agent); return; }
       if(!r.ok){ logKill('<b>REVOKE</b> '+agent+' → '+(d.error||('HTTP '+r.status))); }
       else { logKill('<b>REVOKE</b> '+agent+' · order '+(d.warrant||'')+' pulled · node confirmed'); }
       await poll(); setLive();
