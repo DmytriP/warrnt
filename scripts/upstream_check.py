@@ -185,15 +185,23 @@ def main() -> int:
               "payments.transfer" not in upstream_calls(upstream_log),
               f"upstream saw {upstream_calls(upstream_log)}")
 
-        # --- 4. a call the warrant allows does move money ------------------------------
-        ok_transfer = demo.rpc(node_url, "fin-reconcile", tokens["fin-reconcile"],
-                               "payments.transfer", {"amount_pln": 42000, "rows": 1})
-        check("an in-limit transfer is executed by the real upstream",
-              ok_transfer.get("result", {}).get("executed") is True
-              and ok_transfer.get("result", {}).get("upstream") is True,
-              f"result={json.dumps(ok_transfer.get('result', {}), sort_keys=True)[:160]}")
-        check("the upstream's log shows exactly one transfer",
-              upstream_calls(upstream_log).count("payments.transfer") == 1)
+        # --- 4. money inside its own signed limit still does not move -------------------
+        # The action-class taxonomy: an irreversible act is REQUIRE-HUMAN, whatever the order
+        # says. What this check proves is that a *valid, untampered* warrant is still not
+        # enough to move money, and that the other process never even hears about the call.
+        in_limit = demo.rpc(node_url, "fin-reconcile", tokens["fin-reconcile"],
+                            "payments.transfer", {"amount_pln": 42000, "rows": 1})
+        check("an in-limit transfer stops at require-human, not at the upstream",
+              in_limit.get("error", {}).get("code") == -32002
+              and in_limit.get("error", {}).get("data", {}).get("class") == "irreversible",
+              f"error={json.dumps(in_limit.get('error', {}), sort_keys=True)[:200]}")
+        check("the upstream's log shows no transfer at all",
+              upstream_calls(upstream_log).count("payments.transfer") == 0,
+              f"upstream saw {upstream_calls(upstream_log)}")
+        receipt = demo.get(node_url, "/receipts")[-1]
+        check("and the refusal is on the record as 'human', naming the class",
+              receipt["decision"] == "human" and "class irreversible" in receipt["reason"],
+              f"{receipt['decision']} · {receipt['reason'][:140]}")
 
         # --- 5. require-human never reaches the other process --------------------------
         deploy = demo.rpc(node_url, "deploy-agent", tokens["deploy-agent"], "infra.deploy",
@@ -217,7 +225,8 @@ def main() -> int:
         check("the receipt chain recomputes from genesis", chain["ok"] and chain["length"] > 0,
               f"{chain['length']} receipts, head {chain['head']}")
         check("the node's executor counter matches the upstream's log",
-              demo.get(node_url, "/state")["executor_calls"] == {"crm.read": 1, "payments.transfer": 1},
+              demo.get(node_url, "/state")["executor_calls"] == {"crm.read": 1}
+              and upstream_calls(upstream_log).count("payments.transfer") == 0,
               f"node={demo.get(node_url, '/state')['executor_calls']} "
               f"upstream={sorted(upstream_calls(upstream_log))}")
 

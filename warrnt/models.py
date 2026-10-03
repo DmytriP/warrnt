@@ -13,19 +13,26 @@ from pydantic import BaseModel, Field
 
 
 class Decision(str, Enum):
+    """The frozen decision space: allow | deny | redact | human | revoked.
+
+    ``expired`` is **not** a decision - it is a warrant state (``state`` below). An order
+    whose TTL elapsed is refused as ``deny`` with ``warrant_state: expired``, because the
+    decision answers "did this call run", and an expired order is simply refused.
+    """
+
     allow = "allow"
-    deny = "deny"
+    deny = "deny"            # refused before execution
+    redact = "redact"        # executed, with the personal fields stripped out first
     human = "human"          # require-human: pause, do not execute
     revoked = "revoked"      # warrant pulled / agent halted
-    expired = "expired"      # TTL elapsed
 
 
 DECISION_TEXT = {
     Decision.allow: "ALLOW",
     Decision.deny: "DENY before execution",
+    Decision.redact: "REDACT — executed, personal fields stripped",
     Decision.human: "REQUIRE-HUMAN",
     Decision.revoked: "REVOKED",
-    Decision.expired: "EXPIRED",
 }
 
 
@@ -48,6 +55,10 @@ class Rule(BaseModel):
     guards: list[Guard] = Field(default_factory=list)
     # names of params that carry a list of fields; if any is PII the rule fires
     inspect_pii: list[str] = Field(default_factory=list)
+    # names of params that carry a list of fields; PII found there is *stripped* and the
+    # call still runs (decision ``redact``). The distinction from ``inspect_pii`` is the
+    # whole point: one refuses the act, the other lets the act happen without the data.
+    redact: list[str] = Field(default_factory=list)
 
 
 class WarrantSpec(BaseModel):

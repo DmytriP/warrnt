@@ -8,9 +8,10 @@ from __future__ import annotations
 import time
 from typing import Any, Optional
 
+from .actions import apply_class, classify, listing as class_listing
 from .actors import ACTOR_SEED, ActorProfile, ActorRegistry
 from .models import AgentState, Decision, DECISION_TEXT, Warrant
-from .policy import PolicyEngine
+from .policy import PolicyEngine, strip_pii
 from .registry import AppendOnlyRegistry
 from .seed import SEED_SPECS
 from .upstream import ExecutionCounter, build_upstream
@@ -97,14 +98,27 @@ class MCPProxy:
             decision, reason = Decision.revoked, f"agent halted · warrant {agent.warrant} pulled"
             detail = {"warrant": agent.warrant}
         else:
-            # The actor register speaks before the order is read. A class limit is not a
-            # permission question about the user: a valid warrant for the same tool still
-            # does not move it, which is the point of keeping the two gates apart.
-            class_block = self.actors.check(agent_id, tool, params)
-            if class_block is not None:
-                decision, reason, detail = class_block
+            # Three gates, in the order a person would ask them: what kind of act is this,
+            # who is standing at the gate, and what does the order allow. The class can only
+            # raise what follows it - a warrant never talks an irreversible act back down to
+            # a machine decision.
+            cls = classify(tool, params)
+            if cls is None:
+                decision, reason, detail = apply_class(Decision.allow, None, params)
             else:
-                decision, reason, detail = self.engine.evaluate(warrant, tool, params)
+                class_block = self.actors.check(agent_id, tool, params)
+                if class_block is not None:
+                    decision, reason, detail = class_block
+                    detail = {**detail, "class": cls.value}
+                    reason = f"{reason} · class {cls.value}"
+                else:
+                    decision, reason, detail = self.engine.evaluate(warrant, tool, params)
+                    decision, class_note, class_detail = apply_class(decision, cls, params)
+                    detail = {**detail, **class_detail}
+                    if class_note:
+                        reason = class_note if not reason else f"{reason} · {class_note}"
+                    else:
+                        reason = f"{reason} · class {cls.value}"
 
         agent.last = f"{tool} · {DECISION_TEXT.get(decision, decision.value)}"
         receipt = self._receipt(decision, agent_id, tool, agent.warrant, reason, params,
@@ -116,18 +130,26 @@ class MCPProxy:
             # having to report anything back.
             self._note_stop(agent_id)
 
-        if decision is not Decision.allow:
+        if decision is not Decision.allow and decision is not Decision.redact:
             return decision, reason, {**detail, "receipt": receipt["hash"][:8],
                                       "rows_after": 0}, receipt, False
 
-        result = self.upstream.call(tool, params or {})   # executed ONLY here
+        # Exactly two decisions execute: allow, and redact - where the personal fields the
+        # rule names are taken out of the payload *before* the upstream is called, so the
+        # upstream never sees them. The removal is part of the record, not a silent edit.
+        exec_params = params or {}
+        if decision is Decision.redact:
+            exec_params, removed = strip_pii(params, detail.get("redacted") or [])
+            detail = {**detail, "redacted": removed, "upstream_params": exec_params}
+
+        result = self.upstream.call(tool, exec_params)   # executed ONLY here
         receipt2 = self.registry.append(
-            t=_clock(), decision=Decision.allow.value, agent=agent_id, tool=tool,
+            t=_clock(), decision=decision.value, agent=agent_id, tool=tool,
             warrant=agent.warrant,
             reason=reason, params="", rows_after=result["rows"], ts=self._now(),
             exec_hash=receipt["hash"],
         )
-        return (Decision.allow, reason,
+        return (decision, reason,
                 {**detail, "receipt": receipt2["hash"][:8], "rows_after": result["rows"],
                  "result": result}, receipt2, True)
 
@@ -220,5 +242,6 @@ class MCPProxy:
             "revoked": self.stats["revoked"], "last_stop": self.stats["last_stop"],
             "agents": agents, "warrants": warrants, "receipts": receipts,
             "actors": self.actors.listing(),
+            "actions": class_listing(),
             "executor_calls": self.counter.snapshot(), "chain": self.registry.verify(),
         }

@@ -34,11 +34,12 @@ from .registry import AppendOnlyRegistry
 from .upstream import build_upstream, ExecutionCounter
 from .warrants import WarrantIssuer
 
+# Only refusals are errors. ``redact`` runs, so it is a result with a note - a receipt
+# that says *executed, minus these fields* - never a JSON-RPC error.
 RPC_CODES = {
     Decision.deny: -32001,
     Decision.human: -32002,
     Decision.revoked: -32003,
-    Decision.expired: -32004,
 }
 
 
@@ -199,10 +200,13 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
         decision, reason, detail, receipt, executed = proxy().intercept(
             x_warrnt_agent, x_warrnt_token, tool, args)
 
-        if decision is Decision.allow:
+        if decision in (Decision.allow, Decision.redact):
             return JSONResponse({"jsonrpc": "2.0", "id": rpc_id, "result": {
                 "decision": decision.value, "reason": reason, "executed": executed,
-                "receipt": detail.get("receipt"), **detail.get("result", {}),
+                "receipt": detail.get("receipt"),
+                "redacted": detail.get("redacted"),
+                "upstream_params": detail.get("upstream_params"),
+                **detail.get("result", {}),
             }})
         return JSONResponse({"jsonrpc": "2.0", "id": rpc_id, "error": {
             "code": RPC_CODES.get(decision, -32000), "message": reason,

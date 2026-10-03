@@ -38,9 +38,15 @@ def test_transfer_over_limit_is_denied_and_not_executed(client, tokens):
     assert _calls(client, "payments.transfer") == before      # nothing ran
 
 
-def test_transfer_within_limit_is_allowed(client, tokens):
+def test_transfer_within_limit_still_needs_a_person(client, tokens):
+    """Within the signed limit, and still a person's call: money is irreversible."""
+    before = _calls(client, "payments.transfer")
     reply = call(client, tokens, "fin-reconcile", "payments.transfer", {"amount_pln": 42000})
-    assert reply.json()["result"]["decision"] == "allow"
+    body = reply.json()
+    assert body["error"]["data"]["decision"] == "human"
+    assert body["error"]["data"]["class"] == "irreversible"
+    assert body["error"]["data"]["executed"] is False
+    assert _calls(client, "payments.transfer") == before      # nothing ran
 
 
 def test_pii_export_is_denied_before_execution(client, tokens):
@@ -182,3 +188,29 @@ def test_dev_tamper_probe_marks_the_order_invalid(client):
     assert body["ok"] is True and body["sig_ok"] is False
     seen = {w["id"]: w for w in client.get("/warrants").json()}
     assert seen["W-4417"]["sig_ok"] is False
+
+
+def test_a_read_naming_a_personal_field_is_stripped_and_still_runs(client, tokens):
+    """The contract's ``redact`` decision, end to end: the call runs, the field does not."""
+    before = _calls(client, "crm.read")
+    reply = call(client, tokens, "support-copilot", "crm.read",
+                 {"table": "tickets", "fields": ["subject", "email"], "limit": 5})
+    body = reply.json()
+    assert "result" in body, body
+    assert body["result"]["decision"] == "redact"
+    assert body["result"]["executed"] is True
+    assert body["result"]["redacted"] == ["email"]
+    # proof the upstream never saw it: the payload that left the node
+    assert body["result"]["upstream_params"]["fields"] == ["subject"]
+    assert _calls(client, "crm.read") == before + 1
+
+
+def test_a_bulk_export_with_personal_fields_is_still_refused(client, tokens):
+    """``inspect_pii`` refuses the act; ``redact`` lets it run. Both stay on the record."""
+    before = _calls(client, "crm.bulk_export")
+    reply = call(client, tokens, "support-copilot", "crm.bulk_export", {"fields": ["email"]})
+    body = reply.json()
+    assert "error" in body
+    assert body["error"]["data"]["decision"] == "deny"
+    assert body["error"]["data"]["executed"] is False
+    assert _calls(client, "crm.bulk_export") == before
