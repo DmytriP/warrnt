@@ -216,3 +216,35 @@ def test_a_bulk_export_with_personal_fields_is_still_refused(client, tokens):
     assert body["error"]["data"]["decision"] == "deny"
     assert body["error"]["data"]["executed"] is False
     assert _calls(client, "crm.bulk_export") == before
+
+
+def test_upstream_log_path_honours_every_name_the_deployment_uses(monkeypatch):
+    """The reader must find the journal the writer wrote, under the name it used.
+
+    serve_tenet.sh names the upstream's access log with an env var. If the reader honours
+    some other name, the upstream logs every real call and the evidence surface reports
+    none - a broken chain that looks like nothing happened.
+    """
+    from warrnt.api import upstream_log_path
+
+    names = ("TENET_UPSTREAM_LOG", "WARRNT_UPSTREAM_LOG", "FRANKFURTER_LOG")
+    for name in names:
+        monkeypatch.delenv(name, raising=False)
+    assert upstream_log_path() == ""          # absent is reported as absent, not as a stub
+    for name in names:
+        for other in names:                   # precedence is the deployment's order: product first
+            monkeypatch.delenv(other, raising=False)
+        monkeypatch.setenv(name, f"/tmp/{name.lower()}-probe.jsonl")
+        assert upstream_log_path() == f"/tmp/{name.lower()}-probe.jsonl"
+
+
+def test_sha256_of_digests_a_real_file_and_never_invents_one(tmp_path):
+    import hashlib
+
+    from warrnt.api import _sha256_of
+
+    assert _sha256_of("") == ""                                  # nothing configured
+    assert _sha256_of(str(tmp_path / "missing.jsonl")) == ""     # configured, but gone
+    journal = tmp_path / "calls.jsonl"
+    journal.write_text('{"call_id": "U-0001"}\n', encoding="utf-8")
+    assert _sha256_of(str(journal)) == hashlib.sha256(journal.read_bytes()).hexdigest()
