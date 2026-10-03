@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import threading
 import time
@@ -27,6 +28,11 @@ from typing import Any, Optional
 
 MAX_ACTIONS = 200
 PENDING = "pending"
+
+# A persisted row carries ``values`` only while the action can still execute. Once a person
+# has decided it - approved, denied, redacted, revoked, expired - the payload is dropped from
+# the file: the record keeps *that* the call happened (keys + digest), never what it carried.
+_EXECUTABLE_STATES = ("pending", "approved")
 
 
 class HoldRefused(RuntimeError):
@@ -78,14 +84,83 @@ class Action:
 
 
 class ActionStore:
-    """Bounded ledger of canonical Actions. One writer per call; reads are snapshots."""
+    """Bounded ledger of canonical Actions. One writer per call; reads are snapshots.
 
-    def __init__(self, limit: int = MAX_ACTIONS) -> None:
+    When ``path`` is given, every action is appended to a JSONL file as a row and the
+    ledger is rebuilt from it on construction, so a restart does not lose a pending action
+    or its receipt. The file is created with mode 0600 (R1): a held action's values are
+    sensitive, and a world-readable store would leak exactly what the hold exists to
+    protect. Values are written to a row only while the action can still execute
+    (pending / approved); a decided row carries none.
+    """
+
+    def __init__(self, limit: int = MAX_ACTIONS, path: str | os.PathLike | None = None) -> None:
         self._lock = threading.Lock()
         self._items: dict[str, Action] = {}
         self._order: list[str] = []
         self._limit = limit
         self._seq = 0
+        self._path = str(path) if path else None
+        if self._path:
+            os.makedirs(os.path.dirname(self._path), exist_ok=True)
+            self._load()
+
+    # ------------------------------------------------------------------ persistence
+    @staticmethod
+    def _seq_of(action_id: str) -> int:
+        """The numeric part of ``A-0007`` - the ordering the id encodes."""
+        m = re.search(r"(\d+)$", action_id or "")
+        return int(m.group(1)) if m else 0
+
+    def _row(self, action: Action) -> dict[str, Any]:
+        """What a persisted row holds. ``values`` survives only while the action can execute."""
+        row = {k: v for k, v in action.__dict__.items() if k != "values"}
+        if action.state in _EXECUTABLE_STATES and action.values:
+            row["values"] = dict(action.values)
+        return row
+
+    def _append_row(self, action: Action) -> None:
+        if not self._path:
+            return
+        with open(self._path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(self._row(action), sort_keys=True, ensure_ascii=False) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+
+    def _load(self) -> None:
+        """Rebuild the ledger from disk. A tolerant reader (R3): a corrupt/truncated last
+        line is skipped, never raised, and the id sequence continues from the highest id
+        that actually loaded - so a restart cannot re-mint an id that already exists.
+        """
+        if not self._path or not os.path.exists(self._path):
+            # Create the file up front with 0600, even before the first action, so the mode
+            # is a property of the store and not of the first write.
+            if self._path:
+                fd = os.open(self._path, os.O_CREAT | os.O_WRONLY, 0o600)
+                os.close(fd)
+                os.chmod(self._path, 0o600)
+            return
+        try:
+            os.chmod(self._path, 0o600)
+        except OSError:
+            pass
+        with open(self._path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                    action = Action(**row)
+                except (ValueError, TypeError):
+                    # A half-written line is exactly what a crash leaves behind. Skip it; the
+                    # valid prefix is the truth we can stand behind.
+                    continue
+                self._items[action.action_id] = action
+                self._order.append(action.action_id)
+                self._seq = max(self._seq, self._seq_of(action.action_id))
+        while len(self._order) > self._limit:
+            self._items.pop(self._order.pop(0), None)
 
     def _next_id(self) -> str:
         self._seq += 1
@@ -99,7 +174,36 @@ class ActionStore:
             self._order.append(action_id)
             while len(self._order) > self._limit:
                 self._items.pop(self._order.pop(0), None)
+            self._append_row(action)
             return action
+
+    def save(self, action: Action) -> None:
+        """Rewrite the store after an action's state changed.
+
+        A state change (approved / denied / expired) must reach disk, and the rewrite is
+        what drops the values: the new row carries none because the action is no longer
+        executable. The whole file is rewritten because an append-only log cannot express
+        "forget these values" - and the hold's values are the one thing we mean to forget.
+        """
+        if not self._path:
+            return
+        with self._lock:
+            self._rewrite()
+
+    def _rewrite(self) -> None:
+        tmp = self._path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            for action_id in self._order:
+                action = self._items.get(action_id)
+                if action is None:
+                    continue
+                fh.write(json.dumps(self._row(action), sort_keys=True, ensure_ascii=False) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, self._path)
+        os.chmod(self._path, 0o600)
+
 
     def get(self, action_id: str) -> Optional[Action]:
         return self._items.get(action_id)
@@ -162,6 +266,34 @@ def answer(question: str, actions: list[dict[str, Any]], state: dict[str, Any]) 
         return {"run_id": a.get("run_id"), "action_id": a.get("action_id"),
                 "warrant": a.get("warrant"), "decision": a.get("decision"),
                 "upstream_contacted": a.get("upstream_contacted"), "receipt": a.get("receipt")}
+
+    # A question that NAMES an action is answered about that action - not about the newest one.
+    # Without this, "Why was A-0003 denied?" is answered with whatever happened last, which is
+    # a grounded sentence about the wrong record (the one dishonesty the layer cannot afford).
+    named = re.search(r"\b([a-z]{1,3}-\d{3,})\b", q)
+    if named:
+        wanted = named.group(1).upper()
+        rows = [a for a in actions if str(a.get("action_id", "")).upper() == wanted]
+        if not rows:
+            rows = [a for a in state.get("action_log", [])
+                    if str(a.get("action_id", "")).upper() == wanted]
+        if not rows:
+            return {"answer": f"The record holds no action {wanted}: nothing with that action_id was "
+                              f"decided here, so there is nothing to report about it.",
+                    "evidence": ev, "grounded": True}
+        a = rows[0]
+        where = a.get("state") or ("pending" if a.get("decision") == "human" else "decided")
+        by = a.get("decided_by")
+        rows_out = (a.get("execution_result") or {}).get("rows")
+        text = (f"{a['action_id']}: {a['agent']} → {a['tool']} was decided '{a['decision']}' "
+                f"(class {a.get('action_class')} · warrant {a.get('warrant')} "
+                f"({a.get('warrant_state')}) · state {where}"
+                + (f" · decided by {by}" if by else "") + "). "
+                + f"upstream_contacted={str(bool(a.get('upstream_contacted'))).lower()}"
+                + (f", rows {rows_out}" if rows_out is not None else "")
+                + f", receipt #{a.get('receipt')}."
+                + (f" Reason: {a['reason']}." if a.get("reason") else ""))
+        return {"answer": text, "evidence": ev_of(a), "grounded": True}
 
     # "what happens if I approve this?"
     if "approve" in q or "if i allow" in q:

@@ -1,5 +1,7 @@
 """Configuration. Env only - one node has no config server.
 
+TENET_STATE_DIR     store directory for the persistence layer (actions, node state).
+                    Takes precedence over WARRNT_HOME; unset -> WARRNT_HOME -> ``./state``.
 WARRNT_HOME         state directory (default: ``./state`` under the repo root)
 WARRNT_ISSUER_KEY   signing key (default: generated at <home>/issuer.key)
 WARRNT_UPSTREAM     real MCP endpoint to front; unset -> in-process sandbox
@@ -34,7 +36,13 @@ class Settings:
 
     @classmethod
     def load(cls, home: str | os.PathLike | None = None) -> "Settings":
-        base = Path(home) if home else Path(os.environ.get("WARRNT_HOME", REPO_ROOT / "state"))
+        # TENET_STATE_DIR is the store directory the persistence layer writes to. It is the
+        # narrowest knob: unset, the node keeps its existing WARRNT_HOME (or ./state), so an
+        # operator who sets nothing sees exactly the old behaviour.
+        base = Path(home) if home else Path(
+            os.environ.get("TENET_STATE_DIR")
+            or os.environ.get("WARRNT_HOME")
+            or REPO_ROOT / "state")
         return cls(
             home=base,
             registry_path=base / "receipts.jsonl",

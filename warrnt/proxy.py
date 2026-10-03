@@ -5,6 +5,8 @@ translate a request into a call here and serialise the answer.
 """
 from __future__ import annotations
 
+import json
+import os
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -48,7 +50,8 @@ class MCPProxy:
     def __init__(self, issuer: WarrantIssuer, registry: AppendOnlyRegistry,
                  engine: Optional[PolicyEngine] = None, upstream=None,
                  now=None, actors: Optional[list[ActorProfile]] = None,
-                 catalog=None, budget=None, semantic=None):
+                 catalog=None, budget=None, semantic=None,
+                 store_dir: Optional[str] = None):
         self.issuer = issuer
         self.registry = registry
         self.engine = engine or PolicyEngine()
@@ -56,8 +59,13 @@ class MCPProxy:
         # this kind of actor call this tool at all, whatever the user's rights are.
         self.actors = ActorRegistry(actors if actors is not None else list(ACTOR_SEED))
         # The control plane (PR-14): one canonical Action per intercepted call, plus the one
-        # state the kernel cannot hold by itself - a call paused for a person to decide.
-        self.actions = ActionStore()
+        # state the kernel cannot hold by itself - a call paused for a person to decide. When
+        # a store directory is given, the ledger is persisted there and reloaded on restart,
+        # so a pending hold and its receipt survive the process (contract TASK.2).
+        self._store_dir = store_dir
+        self._actions_path = os.path.join(store_dir, "actions.jsonl") if store_dir else None
+        self._node_state_path = os.path.join(store_dir, "node_state.json") if store_dir else None
+        self.actions = ActionStore(path=self._actions_path)
         self.counter = ExecutionCounter()
         self.upstream = upstream or build_upstream(self.counter)
         # The kernel loads its gates from the plugin package and never names one itself:
@@ -88,6 +96,57 @@ class MCPProxy:
         #                      outbound call; None until a stopped agent actually tries again
         self.stats: dict[str, Any] = {"revoked": 0, "last_stop": None, "stopped_agent": None}
         self._revoke_t0: dict[str, float] = {}
+        # A revocation is durable: pulling a warrant is a decision, and a restart must not
+        # offer the halted agent a fresh chance. Reloaded here before the first request.
+        self._revoked: dict[str, float] = {}
+        if self._node_state_path:
+            self._load_node_state()
+
+    # ------------------------------------------------------------------ persistence
+    def _load_node_state(self) -> None:
+        """Reload the durable part of the node: which agents were halted.
+
+        Only the fact and its timestamp are kept - the warrant itself is re-issued from the
+        seed at boot, so nothing stale is trusted from disk beyond "this one was pulled".
+        """
+        try:
+            with open(self._node_state_path, encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, ValueError):
+            self._revoked = {}
+            return
+        self._revoked = {str(k): float(v) for k, v in (data.get("revoked") or {}).items()}
+
+    def _save_node_state(self) -> None:
+        if not self._node_state_path:
+            return
+        tmp = self._node_state_path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump({"revoked": self._revoked}, fh, sort_keys=True)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, self._node_state_path)
+        os.chmod(self._node_state_path, 0o600)
+
+    def _apply_revocations(self) -> None:
+        """After the seed is (re)issued, put the recorded halts back on the agents.
+
+        This is what makes a revocation survive a restart *and* what makes the reverse true:
+        a hold that was pending when the agent was halted comes back already expired, never
+        approved (R2).
+        """
+        for agent_id, t0 in self._revoked.items():
+            agent = self.agents.get(agent_id)
+            if agent is None:
+                continue
+            agent.state = "halted"
+            agent.last = "chain stopped · warrant revoked"
+            warrant = self.warrants.get(agent.warrant)
+            if warrant is not None:
+                warrant.state = "revoked"
+                warrant.revoked_at = t0
+            self._revoke_t0[agent_id] = t0
 
     # ------------------------------------------------------------------- seed
     def issue_all(self, reset_registry: bool = True, reason: str = "",
@@ -113,6 +172,10 @@ class MCPProxy:
         # A reset re-issues the orders; an open bypass must not survive it.
         self.breakglass.grants.clear()
         self.breakglass._seq = 0
+        # A plain re-issue (boot) restores the recorded halts; an explicit reset is an
+        # operator act that clears them, exactly as it always did.
+        if not reset_registry:
+            self._apply_revocations()
         return rotation
 
     def _feed_path(self) -> str:
@@ -131,6 +194,39 @@ class MCPProxy:
         block = dict(getattr(self.catalog, "semantic", None) or {})
         allowed = {"model", "endpoint", "timeout_ms"}
         return {k: v for k, v in block.items() if k in allowed}
+
+    def _expire_holds_of_halted_agents(self) -> int:
+        """A hold cannot outlive its order, across a restart too (R2).
+
+        If the process stopped while an agent was halted and an action was waiting on a
+        person, the action comes back ``expired`` - a state, never a decision - with no
+        upstream contact. It is never approved: a restart must not decide for a human.
+        """
+        expired = 0
+        for row in self.actions.listing():
+            if row.get("state") != "pending":
+                continue
+            agent = self.agents.get(row["agent"])
+            if agent is not None and agent.state == "halted":
+                action = self.actions.get(row["action_id"])
+                if action is None:
+                    continue
+                action.state = "expired"
+                action.upstream_contacted = False
+                action.values = {}
+                action.kept_for_hold = False
+                # The chain says why the hold died, and it is the same decision word the
+                # resolve path uses: revoked. No execution happened.
+                receipt = self.registry.append(
+                    t=_clock(), decision=Decision.revoked.value, agent=action.agent,
+                    tool=action.tool, warrant=action.warrant,
+                    reason=f"hold {action.action_id} expired · agent halted",
+                    params="", rows_after=0, ts=self._now())
+                action.receipt = receipt["hash"][:8]
+                self.actions.save(action)
+                expired += 1
+        return expired
+
 
     # -------------------------------------------------------------- interception
     def intercept(self, agent_id: str, token: str, tool: str,
@@ -230,6 +326,9 @@ class MCPProxy:
                 # class that raised it was a person's act - the machine may not decide it.
                 action.state, action.kept_for_hold = "pending", True
                 action.values = dict(params or {})
+                # Persist the held row with its values (mode 0600): a restart must be able
+                # to hand this exact action back for a person to decide (contract TASK.2).
+                self.actions.save(action)
                 detail = {**detail, "held": True, "action_id": action.action_id,
                           "class_decider": str(detail.get("decider_text") or "")}
             return decision, reason, {**detail, "action_id": action.action_id,
@@ -291,6 +390,11 @@ class MCPProxy:
         action = self.actions.get(action_id)
         if action is None:
             raise HoldRefused(f"unknown action {action_id}")
+        if action.state == "expired":
+            # Already expired (its agent was halted). An attempt to decide it now is refused,
+            # but it reads the same way it always did: not executed, still a state.
+            return {"action": action.public(), "executed": False,
+                    "receipt": action.receipt, "outcome": "expired"}
         if action.state != "pending":
             raise HoldRefused(f"action {action_id} is {action.state}, not pending")
         if not by.strip():
@@ -300,12 +404,14 @@ class MCPProxy:
         if agent is None or agent.state == "halted":
             # A hold cannot outlive its order: the brake wins over the pending decision.
             action.state, action.decided_by, action.decided_ts = "expired", by, self._now()
+            action.values, action.kept_for_hold = {}, False
             receipt = self.registry.append(
                 t=_clock(), decision=Decision.revoked.value, agent=action.agent,
                 tool=action.tool, warrant=action.warrant,
                 reason=f"hold {action_id} expired · agent halted before {by} decided",
                 params="", rows_after=0, ts=self._now())
             action.receipt = receipt["hash"][:8]
+            self.actions.save(action)
             return {"action": action.public(), "executed": False,
                     "receipt": action.receipt, "outcome": "expired"}
 
@@ -317,9 +423,12 @@ class MCPProxy:
                 params="", rows_after=0, ts=self._now())
             action.state, action.decided_by, action.decided_ts = "denied", by, self._now()
             action.receipt = receipt["hash"][:8]
+            action.values, action.kept_for_hold = {}, False
             self.stats["denied"] = self.stats.get("denied", 0) + 1
+            self.actions.save(action)
             return {"action": action.public(), "executed": False,
                     "receipt": action.receipt, "outcome": "denied"}
+
 
         # The human decision is its own receipt, written before the call it authorises.
         human_receipt = self.registry.append(
@@ -344,6 +453,8 @@ class MCPProxy:
         action.state, action.decided_by, action.decided_ts = "approved", by, self._now()
         action.receipt = receipt["hash"][:8]
         action.execution_result = {**action.execution_result, "rows": rows, "outcome": outcome}
+        action.values, action.kept_for_hold = {}, False
+        self.actions.save(action)
         self.stats["allowed"] = self.stats.get("allowed", 0) + 1
         return {"action": action.public(), "executed": True, "receipt": action.receipt,
                 "outcome": outcome, "rows": rows, "result": result}
@@ -368,7 +479,14 @@ class MCPProxy:
         agent.last = "chain stopped · warrant revoked"
         self.stats["revoked"] += 1
         self._revoke_t0[agent_id] = t0
+        # Durable: the halt must survive a restart, so the next process reloads it and a
+        # pending hold on this agent comes back expired rather than be released by a later
+        # process (R2). A hold cannot outlive its order - not even within this process.
+        self._revoked[agent_id] = t0
+        self._save_node_state()
+        self._expire_holds_of_halted_agents()
         return t0
+
 
     def _note_stop(self, agent_id: str) -> Optional[float]:
         """Record time-to-stop the first time a halted agent is refused after the pull.
