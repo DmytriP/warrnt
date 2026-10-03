@@ -17,6 +17,19 @@ call.
 This repository is **one node, not a platform**: no admin UI, no multi-tenant issuer, no
 stdio transport. Keep it that way until the node is undeniable.
 
+### The gates are plugins (microkernel, with a real registry)
+
+The decision chain is not written into the kernel. `warrnt/gates.py` is a registry; every gate
+is a file under `warrnt/plugins/` that registers itself on import — `act_class` (what kind of
+act is this) → `actor_scope` (who is standing at the gate) → `order_policy` (what does the
+order allow), in that order. The kernel discovers them with `pkgutil` and never names one, so
+**adding a gate is adding a file**, and `register(..., replace=True)` / `unregister(name)` swap
+or pull one while the node runs. `tests/test_gates.py` proves it — including a gate dropped
+into the package by the test itself stopping the pipeline with no kernel line touched, and a
+structural check that `proxy.py` contains no `classify(` / `apply_class(` / `engine.evaluate(` /
+`actors.check(` call site.
+
+
 ## Demo — 2:40, on the live node
 
 [`warrnt-demo-f1.mp4`](https://github.com/indrad3v4/warrnt/releases/download/demo-f1/warrnt-demo-f1.mp4) — clone → tests → node → console → the 3:47 deny → the brake → the gates.
