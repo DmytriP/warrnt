@@ -12,6 +12,11 @@
     GET  /api/breakglass            every grant, its state, its window and its debt
     POST /api/breakglass/revoke     close a grant early
     POST /api/breakglass/postmortem record the review a used grant owes
+    GET  /api/actions            the canonical Action log (one object per intercepted call)
+    GET  /api/actions/{id}       one Action: decision, upstream_contacted, receipt
+    POST /api/actions/{id}/approve  a named person releases a held action (runs upstream)
+    POST /api/actions/{id}/deny     a named person refuses it (upstream NOT contacted)
+    POST /api/ask                an answer assembled from the record - never guessed
 
 The proxy is built once in ``create_app`` and stored on ``app.state.proxy``; routes are
 thin translators. A denied call returns a JSON-RPC ``error`` and the upstream is not
@@ -39,6 +44,7 @@ from .actions import classify
 from .actors import ActorRegistry
 from .anchor import HeadAnchor
 from .breakglass import MAX_TTL_S, BreakGlassRefused
+from .controlplane import HoldRefused, answer
 from .config import Settings
 from .models import Decision
 from .policy import PolicyEngine
@@ -80,6 +86,15 @@ class BreakGlassId(BaseModel):
 class BreakGlassPostmortem(BaseModel):
     id: str
     note: str
+
+
+class DecideRequest(BaseModel):
+    by: str
+    note: str = ""
+
+
+class AskRequest(BaseModel):
+    q: str
 
 
 class ResetRequest(BaseModel):
@@ -243,7 +258,8 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
     @app.post("/mcp")
     async def mcp(request: Request,
                   x_warrnt_agent: str = Header(default=""),
-                  x_warrnt_token: str = Header(default="")) -> JSONResponse:
+                  x_warrnt_token: str = Header(default=""),
+                  x_warrnt_run: str = Header(default="")) -> JSONResponse:
         body = await request.json()
         rpc_id = body.get("id")
         if body.get("method") != "tools/call":
@@ -258,11 +274,12 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
                                  "error": {"code": -32602, "message": "params.name required"}})
 
         decision, reason, detail, receipt, executed = proxy().intercept(
-            x_warrnt_agent, x_warrnt_token, tool, args)
+            x_warrnt_agent, x_warrnt_token, tool, args, run_id=x_warrnt_run)
 
         if decision in (Decision.allow, Decision.redact):
             return JSONResponse({"jsonrpc": "2.0", "id": rpc_id, "result": {
                 "decision": decision.value, "reason": reason, "executed": executed,
+                "action_id": detail.get("action_id"),
                 "receipt": detail.get("receipt"),
                 "redacted": detail.get("redacted"),
                 "upstream_params": detail.get("upstream_params"),
@@ -272,6 +289,65 @@ def create_app(settings: Optional[Settings] = None, seed: bool = True) -> FastAP
             "code": RPC_CODES.get(decision, -32000), "message": reason,
             "data": {"decision": decision.value, "executed": executed, **detail},
         }})
+
+    # ---------------------------------------------------------- control plane (PR-14)
+    @app.get("/api/actions")
+    def actions(state: str = "", limit: int = 60) -> dict[str, Any]:
+        """The canonical Action log: the same object the console renders and an answer quotes."""
+        p = proxy()
+        return {"counts": p.actions.counts(),
+                "pending": p.actions.pending(),
+                "actions": p.actions.listing(state=state or None, limit=limit)}
+
+    @app.get("/api/actions/{action_id}")
+    def action_one(action_id: str) -> JSONResponse:
+        action = proxy().actions.get(action_id)
+        if action is None:
+            return JSONResponse({"error": f"unknown action {action_id}",
+                                 "hint": "GET /api/actions lists the ledger"},
+                                status_code=404)
+        return JSONResponse(action.public())
+
+    @app.post("/api/actions/{action_id}/approve")
+    def action_approve(action_id: str, body: DecideRequest,
+                       x_warrnt_admin: str = Header(default="")) -> JSONResponse:
+        """A named person releases the hold: the upstream runs here, once, and the chain
+        records the human decision *before* the execution it authorises."""
+        denied = require_admin(x_warrnt_admin)
+        if denied is not None:
+            return denied
+        try:
+            out = proxy().resolve_hold(action_id, approve=True, by=body.by)
+        except HoldRefused as exc:
+            return JSONResponse({"error": str(exc), "action_id": action_id}, status_code=409)
+        return JSONResponse({"action_id": action_id, "state": out["action"]["state"],
+                             "executed": out["executed"], "upstream_contacted": True,
+                             "rows": out.get("rows", 0), "receipt": out["receipt"]})
+
+    @app.post("/api/actions/{action_id}/deny")
+    def action_deny(action_id: str, body: DecideRequest,
+                    x_warrnt_admin: str = Header(default="")) -> JSONResponse:
+        """A named person refuses the hold. The upstream is NOT contacted, and the receipt
+        is the proof: ``upstream_contacted`` stays false for this action_id."""
+        denied = require_admin(x_warrnt_admin)
+        if denied is not None:
+            return denied
+        try:
+            out = proxy().resolve_hold(action_id, approve=False, by=body.by)
+        except HoldRefused as exc:
+            return JSONResponse({"error": str(exc), "action_id": action_id}, status_code=409)
+        return JSONResponse({"action_id": action_id, "state": out["action"]["state"],
+                             "executed": False, "upstream_contacted": False,
+                             "receipt": out["receipt"]})
+
+    @app.post("/api/ask")
+    def ask(body: AskRequest) -> dict[str, Any]:
+        """An answer built from the record. There is no model in this path on purpose: what
+        the console says about a call must be a field of that call, or an admission that the
+        field is missing."""
+        p = proxy()
+        st = p.state(limit=20)
+        return answer(body.q, p.actions.listing(limit=60), st)
 
     # --------------------------------------------------------------------- brake
     @app.post("/revoke")
