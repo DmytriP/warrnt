@@ -1,3 +1,9 @@
+SUPERSEDED IN ONE LINE (2026-10-03, stage 4 — action classes): the line below that says an
+in-limit payments.transfer is `allow` is no longer true. Money is class `irreversible`, so
+the node now answers `human` (REQUIRE-HUMAN) even inside a valid signed limit, and the call
+never reaches the upstream. See docs/../warrnt/actions.py and docs/stage-4-action-classes.md
+in the submission repo. The rest of this status report stands.
+
 D1 — стан на 2026-10-03 (галоўны сцэнар)
 =======================================
 
