@@ -227,7 +227,24 @@ Denials come back as JSON-RPC errors, and nothing runs:
 | `deny` | `-32001` | the actor class forbids this tool, or the call is outside the warrant's scope, or a guard failed, or the order's signature is invalid |
 | `human` | `-32002` | require-human: pause, do not execute |
 | `revoked` | `-32003` | warrant pulled / agent halted |
-| `expired` | `-32004` | TTL elapsed |
+
+An expired order is refused as `deny` (`-32001`) with `warrant_state: expired` in the error
+data: `expired` is a *warrant state* (`active | revoked | expired`), not a decision, and the
+two vocabularies are kept apart on purpose.
+
+`redact` is **not** an error — it is a second executing decision. The call runs and the
+personal fields the rule names are stripped from the payload first, so the upstream never
+sees them; the answer carries `redacted: [...]` (the fields removed) and
+`upstream_params` (what the upstream was actually allowed to see). `inspect_pii` refuses the
+act, `redact` lets it happen without the data:
+
+```bash
+curl -s localhost:8848/mcp -H 'X-WARRNT-Agent: support-copilot' \
+  -H "X-WARRNT-Token: $TOK" -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"crm.read",
+       "arguments":{"table":"tickets","fields":["subject","email"]}}}' | jq .result.decision
+# "redact"
+```
 
 ## Why it is believable (not a claim)
 

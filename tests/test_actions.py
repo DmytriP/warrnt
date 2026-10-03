@@ -66,7 +66,22 @@ def test_only_the_operator_may_act_on_the_rules_themselves():
     assert "no machine may" in reason
 
 
-@pytest.mark.parametrize("given", [Decision.deny, Decision.revoked, Decision.expired])
+def test_a_redact_is_raised_by_a_class_like_any_executed_call():
+    """A redact is an executed call, so the ladder treats it as one: machine classes keep
+    it, an irreversible act still lifts it to a person, the operator class still refuses."""
+    expected = {
+        ActionClass.observe: Decision.redact,
+        ActionClass.read_personal: Decision.redact,
+        ActionClass.draft: Decision.redact,
+        ActionClass.write_reversible: Decision.redact,
+        ActionClass.irreversible: Decision.human,
+        ActionClass.authorize: Decision.deny,
+    }
+    got = {cls: apply_class(Decision.redact, cls, {})[0] for cls in ActionClass}
+    assert got == expected
+
+
+@pytest.mark.parametrize("given", [Decision.deny, Decision.revoked])
 def test_a_class_never_lowers_a_decision(given):
     """Whatever the order, the guards or the register already decided stands."""
     for cls in ActionClass:

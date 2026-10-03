@@ -68,14 +68,40 @@ def test_revoked_warrant_wins_over_scope():
     assert decision is Decision.revoked
 
 
-def test_expired_warrant_is_reported_as_expired():
+def test_an_expired_order_is_refused_as_a_deny_carrying_the_state():
+    """``expired`` is a warrant state, not a decision: the contract freezes five decisions."""
     clock = {"t": 0.0}
     issuer = WarrantIssuer(key=b"k", now=lambda: clock["t"])
     w = issuer.issue(WarrantSpec(id="W-x", agent="a", role="R", scope="s", ttl=10.0,
                                  rules=[Rule(tool="crm.read", effect=Decision.allow)]))
     clock["t"] = 11.0
-    decision, reason, _ = ENGINE.evaluate(w, "crm.read", {})
-    assert decision is Decision.expired and "TTL" in reason
+    decision, reason, detail = ENGINE.evaluate(w, "crm.read", {})
+    assert decision is Decision.deny and "TTL" in reason
+    assert detail["warrant_state"] == "expired"
+    assert "expired" not in {d.value for d in Decision}
+
+
+def test_a_read_that_names_a_personal_field_is_stripped_not_refused():
+    w = warrant([Rule(tool="crm.read", effect=Decision.allow, redact=["fields"])])
+    decision, reason, detail = ENGINE.evaluate(
+        w, "crm.read", {"table": "tickets", "fields": ["subject", "email", "PESEL"]})
+    assert decision is Decision.redact
+    assert sorted(detail["redacted"]) == ["PESEL", "email"]   # the record keeps the asking
+    assert "stripped" in reason
+
+
+def test_a_clean_read_stays_a_plain_allow():
+    w = warrant([Rule(tool="crm.read", effect=Decision.allow, redact=["fields"])])
+    decision, _, _ = ENGINE.evaluate(w, "crm.read", {"table": "tickets", "fields": ["subject"]})
+    assert decision is Decision.allow
+
+
+def test_strip_pii_removes_the_field_from_the_payload():
+    from warrnt.policy import strip_pii
+    clean, removed = strip_pii({"table": "tickets", "fields": ["subject", "email"], "limit": 5},
+                               ["email"])
+    assert clean == {"table": "tickets", "fields": ["subject"], "limit": 5}
+    assert removed == ["email"]
 
 
 def test_unknown_agent_has_no_warrant():

@@ -24,7 +24,10 @@ SEED_SPECS: list[WarrantSpec] = [
         id="W-4419", agent="support-copilot", role="Support",
         scope="crm.read · export=false · no PII fields", ttl=420.0,
         rules=[
-            Rule(tool="crm.read", effect="allow", reason="read-only · in scope"),
+            # A read that names a personal field is authorised but stripped: the copilot
+            # still answers the ticket, the PII never reaches it (decision ``redact``).
+            Rule(tool="crm.read", effect="allow", reason="read-only · in scope · PII stripped",
+                 redact=["fields"]),
             Rule(tool="crm.bulk_export", effect="deny", reason="export=false · no PII fields in warrant scope",
                  inspect_pii=["fields"]),
         ],

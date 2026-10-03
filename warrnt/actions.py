@@ -99,8 +99,9 @@ PERSONAL_FIELDS = {
     "national_id", "tax_id", "account", "credit_card", "msisdn", "pesel_number",
 }
 
-_RAISE = {Decision.allow: 0, Decision.human: 1, Decision.deny: 2,
-          Decision.revoked: 3, Decision.expired: 3}
+# redact ranks with allow: the call still runs, so a class may raise it but never needs to.
+_RAISE = {Decision.allow: 0, Decision.redact: 0, Decision.human: 1, Decision.deny: 2,
+          Decision.revoked: 3}
 
 
 def personal_fields(params: dict[str, Any] | None) -> list[str]:
@@ -152,7 +153,7 @@ def apply_class(decision: Decision, cls: Optional[ActionClass],
         detail["personal_fields"] = hits
 
     # The floor the class imposes. Raising means moving *up* the ladder, never down: a
-    # revoked or expired order stays revoked or expired even for an irreversible act -
+    # revoked or denied order stays revoked or denied even for an irreversible act -
     # fail-closed means the reason is kept, not overwritten.
     floor = Decision.allow
     note = ""
